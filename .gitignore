@@ -1,0 +1,26 @@
+# Environnements Python et caches
+venv/
+.venv/
+.pylib/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Clés cryptographiques et sauvegardes personnelles de la télécommande
+smartremote_keys.json
+*_dump.json
+*_backup.json
+
+# Binaires APK / DEX utilisés lors de la rétro-ingénierie
+*.apk
+*.xapk
+*.dex
+apk_extracted/
+apk_dump/
+
+# Fichiers éditeur / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
