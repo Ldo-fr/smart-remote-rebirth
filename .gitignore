@@ -24,3 +24,5 @@ apk_dump/
 .idea/
 *.swp
 
+# Antigravity
+.agents/
