@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import email.parser
+import hashlib
 import json
 import os
+import secrets
 import sys
 import types
 from typing import Any, Callable
@@ -358,6 +360,9 @@ except ImportError:
     sys.modules["aiohttp.web"] = web_shim
     aiohttp = aiohttp_shim
 
+# Chargement immédiat des mocks Home Assistant (Phase 2)
+import tests.ha_mock
+
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
@@ -407,6 +412,17 @@ class MockSmartRemoteServer:
         self.force_auth_error_next_api: bool = False
         self.last_api_request_data: dict | None = None
         self.lua_steps_called: list[str] = []
+        self.serial_number: str = "a06fe048b48b260139"
+        self.pin: str = "123-45-678"
+        self.salt: bytes = b"\x11" * 16
+        self.srp_b_secret: bytes | None = None
+        self.srp_b_pub: bytes | None = None
+        self.srp_v: int | None = None
+        self.srp_shared_k: bytes | None = None
+        self.fail_pair_setup_m1: str | None = None
+        self.fail_hello: bool = False
+        self.fail_srp_m3: bool = False
+        self.fail_m5_disconnect: bool = False
 
     async def start(self) -> None:
         """Démarre le serveur mock sur un port dynamique local."""
@@ -512,8 +528,12 @@ class MockSmartRemoteServer:
         writer: asyncio.StreamWriter,
     ) -> tuple[int | None, dict[str, str], bytes]:
         """Achemine la requête vers l'endpoint émulé approprié."""
-        if path == "/pair-setup":
-            return await self._handle_pair_setup(body)
+        if path == "/api/hello":
+            if getattr(self, "fail_hello", False):
+                return 500, {}, b"Error"
+            return 200, {"Content-Type": "application/json"}, b'{"status": "ok"}'
+        elif path == "/pair-setup":
+            return await self._handle_pair_setup(body, writer)
         elif path == "/pair-verify":
             return await self._handle_pair_verify(body, conn_id)
         elif path == "/api/devices/sevenhugs.control.webhooks/setup":
@@ -522,11 +542,16 @@ class MockSmartRemoteServer:
             return await self._handle_api(path, body, conn_id, writer)
         return 404, {}, b"Not Found"
 
-    async def _handle_pair_setup(self, body: bytes) -> tuple[int, dict[str, str], bytes]:
+    async def _handle_pair_setup(self, body: bytes, writer: asyncio.StreamWriter | None = None) -> tuple[int | None, dict[str, str], bytes]:
         tlv = decode_tlv(body)
         state = tlv.get(0x06)
 
         if state in (1, b"\x01"):
+            if getattr(self, "fail_pair_setup_m1", None) == "500":
+                return 500, {}, b"Internal Server Error (Remote Busy)"
+            if getattr(self, "fail_pair_setup_m1", None) == "timeout":
+                await asyncio.sleep(65.0)
+
             # Validation formelle du Tag 0x00 (kTLVType_Method = 1 pour SRP-6a Pair Setup)
             if tlv.get(0x00) not in (1, b"\x01"):
                 err_tlv = encode_tlv([(0x06, 2), (0x07, 2)])
@@ -534,27 +559,88 @@ class MockSmartRemoteServer:
 
             # Simulation de la latence matérielle de 16 secondes (non-bloquante)
             await asyncio.sleep(self.pair_setup_delay)
-            salt = b"\x11" * 16
-            fake_b = pad_to_n(b"\x22" * 100, 384)
-            resp = encode_tlv([(0x06, 2), (0x02, salt), (0x03, fake_b)])
+
+            # Calcul SRP serveur M1
+            self.srp_b_secret = secrets.token_bytes(64)
+            b_int = big_integer_from_bytes(self.srp_b_secret)
+
+            username = b"Pair-Setup"
+            pin_str = getattr(self, "pin", "123-45-678")
+            h_i_p = hashlib.sha512(username + b":" + pin_str.encode("utf-8")).digest()
+            s_bytes = big_integer_to_bytes(big_integer_from_bytes(self.salt))
+            x = big_integer_from_bytes(hashlib.sha512(s_bytes + h_i_p).digest())
+            self.srp_v = pow(SRP_G, x, SRP_N)
+
+            n_padded = pad_to_n(big_integer_to_bytes(SRP_N), 384)
+            g_padded = pad_to_n(big_integer_to_bytes(SRP_G), 384)
+            k = big_integer_from_bytes(hashlib.sha512(n_padded + g_padded).digest())
+
+            b_pub_val = (k * self.srp_v + pow(SRP_G, b_int, SRP_N)) % SRP_N
+            self.srp_b_pub = pad_to_n(big_integer_to_bytes(b_pub_val), 384)
+
+            resp = encode_tlv([(0x06, 2), (0x02, self.salt), (0x03, self.srp_b_pub)])
             return 200, {"Content-Type": "application/pairing+tlv8"}, resp
 
         elif state in (3, b"\x03"):
-            # M3 -> M4
+            if getattr(self, "fail_srp_m3", False):
+                err_tlv = encode_tlv([(0x06, 4), (0x07, 2)])
+                return 400, {"Content-Type": "application/pairing+tlv8"}, err_tlv
+
             a_bytes = tlv.get(0x03)
             m1_proof = tlv.get(0x04)
-            fake_k = b"\x33" * 64
-            # Preuve serveur M2
-            m2_hash = hashlib.sha512(a_bytes + m1_proof + fake_k).digest()
+
+            a_int = big_integer_from_bytes(a_bytes)
+            b_int = big_integer_from_bytes(self.srp_b_secret or secrets.token_bytes(64))
+
+            # u = SHA512(pad384(A) || pad384(B))
+            a_padded = pad_to_n(a_bytes, 384)
+            b_padded = pad_to_n(self.srp_b_pub or (b"\x22" * 384), 384)
+            u = big_integer_from_bytes(hashlib.sha512(a_padded + b_padded).digest())
+
+            # S = (A * v^u mod N)^b mod N
+            v = self.srp_v if self.srp_v is not None else 1
+            val1 = (a_int * pow(v, u, SRP_N)) % SRP_N
+            s_int = pow(val1, b_int, SRP_N)
+            self.srp_shared_k = hashlib.sha512(big_integer_to_bytes(s_int)).digest()
+
+            # Vérification de la preuve M1 du client
+            username = b"Pair-Setup"
+            hn = hashlib.sha512(big_integer_to_bytes(SRP_N)).digest()
+            hg = hashlib.sha512(big_integer_to_bytes(SRP_G)).digest()
+            h_xor = big_integer_to_bytes(big_integer_from_bytes(hn) ^ big_integer_from_bytes(hg))
+            hi = hashlib.sha512(username).digest()
+            s_bytes = big_integer_to_bytes(big_integer_from_bytes(self.salt))
+
+            b_bytes_clean = big_integer_to_bytes(big_integer_from_bytes(self.srp_b_pub)) if self.srp_b_pub else b""
+            expected_m1_input = h_xor + hi + s_bytes + a_bytes + b_bytes_clean + self.srp_shared_k
+            expected_m1 = big_integer_to_bytes(big_integer_from_bytes(hashlib.sha512(expected_m1_input).digest()))
+            client_m1 = big_integer_to_bytes(big_integer_from_bytes(m1_proof))
+
+            if expected_m1 != client_m1:
+                # Mauvais code PIN : retour HTTP 400 avec tag 0x07 = 2
+                err_tlv = encode_tlv([(0x06, 4), (0x07, 2)])
+                return 400, {"Content-Type": "application/pairing+tlv8"}, err_tlv
+
+            # Preuve serveur M2 = SHA512(A || M1 || K)
+            m2_hash = hashlib.sha512(a_bytes + m1_proof + self.srp_shared_k).digest()
             m2_proof = big_integer_to_bytes(big_integer_from_bytes(m2_hash))
             resp = encode_tlv([(0x06, 4), (0x04, m2_proof)])
             return 200, {"Content-Type": "application/pairing+tlv8"}, resp
 
         elif state in (5, b"\x05"):
-            # M5 -> M6
+            if getattr(self, "fail_m5_disconnect", False):
+                if writer:
+                    writer.close()
+                return None, {}, b""
+
+            session_key = hkdf_sha512(
+                ikm=self.srp_shared_k or (b"\x33" * 64),
+                salt=b"Pair-Setup-Encrypt-Salt",
+                info=b"Pair-Setup-Encrypt-Info",
+                length=32,
+            )
             sub_m6 = encode_tlv([(0x01, self.remote_id), (0x03, self.remote_pk)])
-            fake_session_k = b"\x44" * 32
-            enc_m6 = ChaCha20Poly1305(fake_session_k).encrypt(NONCE_PS_MSG06, sub_m6, None)
+            enc_m6 = ChaCha20Poly1305(session_key).encrypt(NONCE_PS_MSG06, sub_m6, None)
             resp = encode_tlv([(0x06, 6), (0x05, enc_m6)])
             return 200, {"Content-Type": "application/pairing+tlv8"}, resp
 
@@ -662,7 +748,23 @@ class MockSmartRemoteServer:
 
         resp_obj: Any = {}
         if path == "/api/settings":
-            resp_obj = {"battery": 95, "model": "SR1A", "name": "Salon Remote"}
+            sn = getattr(self, "serial_number", "a06fe048b48b260139")
+            resp_obj = {
+                "battery": 95,
+                "model": "SR1A",
+                "name": "Salon Remote",
+                "serial_number": sn,
+                "mac_address": "38:D7:CA:00:16:5E",
+                "firmware_version": "v0.76.4",
+                "remotes": [
+                    {
+                        "serial_number": sn,
+                        "id": self.remote_id,
+                        "firmware_version": "v0.76.4",
+                        "mac_address": "38:D7:CA:00:16:5E",
+                    }
+                ],
+            }
         elif path == "/api/manifests":
             resp_obj = [
                 {"id": "sevenhugs.control.webhooks", "name": "Webhooks"},
