@@ -34,6 +34,23 @@ DEFAULT_AUTO_SYNC_WEBHOOKS = True
 CONF_TIMEOUT = "timeout"
 DEFAULT_TIMEOUT = 10
 
+# Options avancées et entités exposées (Phase 4 / R3)
+CONF_ENTITIES = "entities"
+CONF_TRIGGER_RESYNC = "trigger_resync"
+DEFAULT_EXPOSED_DOMAINS: list[str] = [
+    "light",
+    "switch",
+    "scene",
+    "media_player",
+]
+DEFAULT_ENTITIES: list[str] = []
+DEFAULT_TRIGGER_RESYNC: bool = False
+
+
+# Webhooks et événements (Phase 4 / R1 & R2)
+EVENT_SEVENHUGS_BUTTON_PRESSED = "sevenhugs_button_pressed"
+WEBHOOK_ID_PREFIX = "sevenhugs_"
+
 # Ports et services réseau
 DEFAULT_PORT = 80
 ZEROCONF_SERVICE_TYPE = "_smart_remote._tcp.local."

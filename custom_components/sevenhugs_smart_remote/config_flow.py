@@ -13,7 +13,7 @@ from homeassistant import config_entries
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow, FlowResult
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from .client import AsyncSmartRemoteClient, SevenhugsAuthError, SevenhugsConnectionError
@@ -22,6 +22,7 @@ from .const import (
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
     CONF_CONTROLLER_ID,
+    CONF_ENTITIES,
     CONF_HOST,
     CONF_POLLING_INTERVAL,
     CONF_PORT,
@@ -31,10 +32,14 @@ from .const import (
     CONF_SESSION_READ_KEY,
     CONF_SESSION_WRITE_KEY,
     CONF_TIMEOUT,
+    CONF_TRIGGER_RESYNC,
     DEFAULT_AUTO_SYNC_WEBHOOKS,
+    DEFAULT_ENTITIES,
+    DEFAULT_EXPOSED_DOMAINS,
     DEFAULT_POLLING_INTERVAL,
     DEFAULT_PORT,
     DEFAULT_TIMEOUT,
+    DEFAULT_TRIGGER_RESYNC,
     DOMAIN,
     ERROR_ALREADY_CONFIGURED,
     ERROR_CANNOT_CONNECT,
@@ -316,9 +321,11 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=f"Sevenhugs Smart Remote ({resolved_id})",
                     data=entry_data,
                     options={
+                        CONF_ENTITIES: list(DEFAULT_ENTITIES),
                         CONF_POLLING_INTERVAL: DEFAULT_POLLING_INTERVAL,
                         CONF_AUTO_SYNC_WEBHOOKS: DEFAULT_AUTO_SYNC_WEBHOOKS,
                         CONF_TIMEOUT: DEFAULT_TIMEOUT,
+                        CONF_TRIGGER_RESYNC: DEFAULT_TRIGGER_RESYNC,
                     },
                 )
 
@@ -459,7 +466,28 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
 
         options = self.config_entry.options or {}
 
+        default_entities = options.get(CONF_ENTITIES, DEFAULT_ENTITIES)
+        if default_entities is None:
+            default_entities = []
+        elif isinstance(default_entities, (list, tuple, set)):
+            default_entities = list(default_entities)
+        else:
+            default_entities = []
+
         data_schema = vol.Schema({
+            vol.Optional(
+                CONF_ENTITIES,
+                default=default_entities,
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(
+                    multiple=True,
+                    domain=DEFAULT_EXPOSED_DOMAINS,
+                )
+            ),
+            vol.Optional(
+                CONF_TRIGGER_RESYNC,
+                default=False,
+            ): selector.BooleanSelector() if hasattr(selector, "BooleanSelector") else bool,
             vol.Optional(
                 CONF_POLLING_INTERVAL,
                 default=options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL),
