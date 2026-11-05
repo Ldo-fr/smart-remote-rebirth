@@ -67,5 +67,37 @@
         }
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Batterie"
+      },
+      "wifi_signal": {
+        "name": "Signal Wi-Fi"
+      },
+      "active_screen": {
+        "name": "Écran actif"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "En charge"
+      },
+      "connectivity": {
+        "name": "Connectivité"
+      }
+    },
+    "button": {
+      "force_sync": {
+        "name": "Forcer la synchronisation"
+      },
+      "ping": {
+        "name": "Ping"
+      },
+      "backup_config": {
+        "name": "Sauvegarder la configuration"
+      }
+    }
   }
 }

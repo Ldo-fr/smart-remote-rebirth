@@ -19,11 +19,14 @@ CONF_SESSION_WRITE_KEY = "session_write_key"
 CONF_SESSION_READ_KEY = "session_read_key"
 CONF_KEYS = "keys"
 
-# Clés et valeurs par défaut pour les options
+# Clés et valeurs par défaut pour les options (R1 : nominal 60s)
 CONF_POLLING_INTERVAL = "polling_interval"
-DEFAULT_POLLING_INTERVAL = 30
+DEFAULT_POLLING_INTERVAL = 60
 MIN_POLLING_INTERVAL = 15
 MAX_POLLING_INTERVAL = 300
+
+# Résilience veille/réveil (R1 : tolérance de 3 échecs consécutifs)
+SLEEP_CONSECUTIVE_FAILURES_THRESHOLD = 3
 
 CONF_AUTO_SYNC_WEBHOOKS = "auto_sync_webhooks"
 DEFAULT_AUTO_SYNC_WEBHOOKS = True
@@ -59,5 +62,18 @@ ERROR_PAIRING_FAILED = "pairing_failed"
 ERROR_ALREADY_CONFIGURED = "already_configured"
 ERROR_UNKNOWN = "unknown"
 
-# Plateformes supportées (Phase 3 étendra cette liste)
-PLATFORMS: list[str] = []
+# Plateformes supportées (Milestone 3 / Requirement R4)
+try:
+    from homeassistant.const import Platform
+
+    PLATFORMS: list[Platform] = [
+        Platform.SENSOR,
+        Platform.BINARY_SENSOR,
+        Platform.BUTTON,
+    ]
+except ImportError:
+    PLATFORMS: list[str] = [  # type: ignore[no-redef]
+        "sensor",
+        "binary_sensor",
+        "button",
+    ]

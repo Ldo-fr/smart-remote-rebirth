@@ -9,15 +9,30 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import datetime
 from enum import Enum
+import logging
+import os
 import sys
 import types
 from typing import Any, Callable, Mapping, Sequence
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PYLIB_DIR = os.path.join(PROJECT_ROOT, ".pylib")
+
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+if os.path.isdir(PYLIB_DIR) and PYLIB_DIR not in sys.path:
+    sys.path.insert(0, PYLIB_DIR)
+
 try:
     import aiohttp
 except ImportError:
-    aiohttp = None
+    try:
+        import tests.conftest
+        import aiohttp
+    except ImportError:
+        aiohttp = None
 
 # ============================================================================
 # 1. SHIM VOLUPTUOUS
@@ -161,6 +176,7 @@ class ConfigEntryState(str, Enum):
     NOT_LOADED = "not_loaded"
     LOADED = "loaded"
     SETUP_ERROR = "setup_error"
+    SETUP_RETRY = "setup_retry"
     MIGRATION_ERROR = "migration_error"
 
 @dataclass
@@ -498,6 +514,8 @@ class MockConfigEntriesManager:
         self.hass = hass
         self._entries: dict[str, ConfigEntry] = {}
         self.reload_count: int = 0
+        self.forwarded_platforms: dict[str, list[str]] = {}
+        self.unloaded_platforms: dict[str, list[str]] = {}
 
     def async_entries(self, domain: str | None = None) -> list[ConfigEntry]:
         if domain:
@@ -521,29 +539,87 @@ class MockConfigEntriesManager:
             entry.data = data
         if options is not None:
             entry.options = options
+            for listener in list(entry._update_listeners):
+                self.hass.async_create_task(listener(self.hass, entry))
         if unique_id is not None:
             entry.unique_id = unique_id
-        for listener in list(entry._update_listeners):
-            self.hass.async_create_task(listener(self.hass, entry))
 
     async def async_reload(self, entry_id: str) -> bool:
         self.reload_count += 1
         entry = self.async_get_entry(entry_id)
         if entry:
-            # Si le composant a été initialisé, simuler unload puis setup
-            from custom_components.sevenhugs_smart_remote import async_setup_entry, async_unload_entry
-            await async_unload_entry(self.hass, entry)
-            await async_setup_entry(self.hass, entry)
+            if not hasattr(entry, "_reload_lock") or entry._reload_lock is None:
+                entry._reload_lock = asyncio.Lock()
+            async with entry._reload_lock:
+                from custom_components.sevenhugs_smart_remote import async_setup_entry, async_unload_entry
+                await async_unload_entry(self.hass, entry)
+                try:
+                    res = await async_setup_entry(self.hass, entry)
+                    entry.state = ConfigEntryState.LOADED if res else ConfigEntryState.SETUP_ERROR
+                    return bool(res)
+                except ConfigEntryNotReady:
+                    entry.state = ConfigEntryState.SETUP_RETRY
+                    return False
+                except Exception:
+                    entry.state = ConfigEntryState.SETUP_ERROR
+                    return False
         return True
 
-    async def async_forward_entry_setups(self, entry: ConfigEntry, platforms: list[str]) -> bool:
+    async def async_forward_entry_setups(self, entry: ConfigEntry, platforms: Sequence[str | Platform]) -> bool:
+        self.forwarded_platforms[entry.entry_id] = list(platforms)
         return True
+
+    async def async_forward_entry_setup(self, entry: ConfigEntry, platform: str | Platform) -> bool:
+        if entry.entry_id not in self.forwarded_platforms:
+            self.forwarded_platforms[entry.entry_id] = []
+        self.forwarded_platforms[entry.entry_id].append(platform)
+        return True
+
+    async def async_unload_platforms(self, entry: ConfigEntry, platforms: Sequence[str | Platform]) -> bool:
+        self.unloaded_platforms[entry.entry_id] = list(platforms)
+        return True
+
+
+ConfigEntriesMock = MockConfigEntriesManager
+
+
+class State:
+    """Représentation d'un état d'entité Home Assistant."""
+    def __init__(self, entity_id: str, state: str, attributes: dict[str, Any] | None = None) -> None:
+        self.entity_id = entity_id
+        self.state = str(state)
+        self.attributes = attributes or {}
+
+    def __repr__(self) -> str:
+        return f"<State {self.entity_id}={self.state}>"
+
+
+class MockStateMachine:
+    """Mock de hass.states permettant d'interroger les entités enregistrées."""
+    def __init__(self) -> None:
+        self._states: dict[str, State] = {}
+
+    def get(self, entity_id: str) -> State | None:
+        return self._states.get(entity_id)
+
+    def set(self, entity_id: str, state: str, attributes: dict[str, Any] | None = None) -> None:
+        self.async_set(entity_id, state, attributes)
+
+    def async_set(self, entity_id: str, state: str, attributes: dict[str, Any] | None = None) -> None:
+        self._states[entity_id] = State(entity_id, str(state), attributes)
+
+    def all(self) -> list[State]:
+        return list(self._states.values())
+
+    def __contains__(self, entity_id: str) -> bool:
+        return entity_id in self._states
 
 
 class HomeAssistant:
     """Mock de l'instance HomeAssistant Core."""
     def __init__(self) -> None:
         self.data: dict[str, Any] = {}
+        self.states = MockStateMachine()
         self.config_entries = MockConfigEntriesManager(self)
         self.device_registry = DeviceRegistry(self)
         try:
@@ -565,6 +641,406 @@ def callback(fn: Callable) -> Callable:
     return fn
 
 # ============================================================================
+# 8. SHIM CONST & ENUMS (Phase 3)
+# ============================================================================
+
+class Platform(str, Enum):
+    """Plateformes Home Assistant supportées."""
+    SENSOR = "sensor"
+    BINARY_SENSOR = "binary_sensor"
+    BUTTON = "button"
+    SWITCH = "switch"
+    LIGHT = "light"
+    MEDIA_PLAYER = "media_player"
+    SCENE = "scene"
+
+
+class EntityCategory(str, Enum):
+    """Catégories d'entités Home Assistant."""
+    CONFIG = "config"
+    DIAGNOSTIC = "diagnostic"
+
+
+PERCENTAGE = "%"
+SIGNAL_STRENGTH_DECIBELS_MILLIWATT = "dBm"
+
+
+class UnitOfSignalStrength:
+    """Unités de force de signal."""
+    DECIBELS_MILLIWATT = "dBm"
+    dBm = "dBm"
+
+
+STATE_ON = "on"
+STATE_OFF = "off"
+STATE_UNAVAILABLE = "unavailable"
+STATE_UNKNOWN = "unknown"
+
+
+# ============================================================================
+# 9. SHIM BASE ENTITY & DEVICE INFO (Phase 3)
+# ============================================================================
+
+@dataclass
+class DeviceInfo:
+    """Informations de rattachement au Device Registry Home Assistant."""
+    identifiers: set[tuple[str, str]] = field(default_factory=set)
+    connections: set[tuple[str, str]] = field(default_factory=set)
+    manufacturer: str | None = None
+    model: str | None = None
+    name: str | None = None
+    sw_version: str | None = None
+    hw_version: str | None = None
+    suggested_area: str | None = None
+    configuration_url: str | None = None
+    via_device: tuple[str, str] | None = None
+
+    def __getitem__(self, item: str) -> Any:
+        return getattr(self, item)
+
+    def get(self, item: str, default: Any = None) -> Any:
+        return getattr(self, item, default)
+
+    def __contains__(self, item: str) -> bool:
+        return hasattr(self, item)
+
+
+@dataclass
+class EntityDescription:
+    """Description de base pour une entité Home Assistant."""
+    key: str
+    name: str | None = None
+    icon: str | None = None
+    entity_category: EntityCategory | None = None
+    has_entity_name: bool = True
+
+
+class Entity:
+    """Classe de base Entity conforme Home Assistant Core."""
+    _attr_has_entity_name: bool = False
+    _attr_name: str | None = None
+    _attr_unique_id: str | None = None
+    _attr_device_info: DeviceInfo | dict[str, Any] | None = None
+    _attr_entity_category: EntityCategory | None = None
+    _attr_extra_state_attributes: dict[str, Any] | None = None
+    _attr_available: bool = True
+    _attr_should_poll: bool = True
+    _attr_translation_key: str | None = None
+    _attr_icon: str | None = None
+
+    def __init__(self) -> None:
+        self.hass: Any = None
+        self.entity_id: str | None = None
+        self._remove_callbacks: list[Callable[[], None]] = []
+
+    @property
+    def has_entity_name(self) -> bool:
+        return self._attr_has_entity_name
+
+    @property
+    def name(self) -> str | None:
+        return self._attr_name
+
+    @property
+    def unique_id(self) -> str | None:
+        return self._attr_unique_id
+
+    @property
+    def device_info(self) -> DeviceInfo | dict[str, Any] | None:
+        return self._attr_device_info
+
+    @property
+    def entity_category(self) -> EntityCategory | None:
+        return self._attr_entity_category
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self._attr_extra_state_attributes or {}
+
+    @property
+    def available(self) -> bool:
+        return self._attr_available
+
+    @property
+    def should_poll(self) -> bool:
+        return self._attr_should_poll
+
+    @property
+    def translation_key(self) -> str | None:
+        return self._attr_translation_key
+
+    @property
+    def icon(self) -> str | None:
+        return self._attr_icon
+
+    def async_write_ha_state(self) -> None:
+        """Écrit l'état de l'entité dans hass.states si disponible."""
+        if hasattr(self, "hass") and self.hass and hasattr(self.hass, "states"):
+            if not self.available:
+                state_val: Any = "unavailable"
+            else:
+                state_val = getattr(self, "state", None)
+                if state_val is None:
+                    state_val = getattr(self, "native_value", None)
+                if state_val is None and hasattr(self, "is_on"):
+                    is_on = getattr(self, "is_on")
+                    state_val = "on" if is_on else ("off" if is_on is False else None)
+
+            attrs = dict(getattr(self, "extra_state_attributes", {}) or {})
+            if hasattr(self, "device_class") and self.device_class:
+                attrs["device_class"] = str(self.device_class)
+            if hasattr(self, "native_unit_of_measurement") and self.native_unit_of_measurement:
+                attrs["unit_of_measurement"] = self.native_unit_of_measurement
+            if hasattr(self, "state_class") and self.state_class:
+                attrs["state_class"] = str(self.state_class)
+
+            target_id = self.entity_id or getattr(self, "unique_id", "entity.unknown")
+            self.hass.states.async_set(target_id, str(state_val) if state_val is not None else "unknown", attrs)
+
+    def async_on_remove(self, func: Callable[[], None]) -> None:
+        self._remove_callbacks.append(func)
+
+    async def async_added_to_hass(self) -> None:
+        """Hook asynchrone invoqué lors de l'enregistrement de l'entité."""
+        pass
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Hook asynchrone invoqué lors du retrait de l'entité."""
+        for cb in list(self._remove_callbacks):
+            cb()
+        self._remove_callbacks.clear()
+
+
+# ============================================================================
+# 10. SHIM UPDATE COORDINATOR (Phase 3)
+# ============================================================================
+
+class UpdateFailed(HomeAssistantError):
+    """Exception levée en cas d'échec de mise à jour des données."""
+
+
+class DataUpdateCoordinator:
+    """Coordinateur de mise à jour des données conforme Home Assistant Core."""
+
+    def __class_getitem__(cls, item: Any) -> Any:
+        return cls
+
+    def __init__(
+        self,
+        hass: Any,
+        logger: logging.Logger,
+        *,
+        name: str,
+        update_interval: datetime.timedelta | None = None,
+        update_method: Callable[[], Any] | None = None,
+        request_refresh_debouncer: Any = None,
+        always_update: bool = True,
+    ) -> None:
+        self.hass = hass
+        self.logger = logger
+        self.name = name
+        self.update_interval = update_interval
+        self.update_method = update_method
+        self.data: Any = None
+        self.last_update_success: bool = True
+        self.last_exception: Exception | None = None
+        self._listeners: list[Callable[[], None]] = []
+
+    def async_add_listener(self, update_callback: Callable[[], None], context: Any = None) -> Callable[[], None]:
+        self._listeners.append(update_callback)
+        def remove() -> None:
+            if update_callback in self._listeners:
+                self._listeners.remove(update_callback)
+        return remove
+
+    def async_update_listeners(self) -> None:
+        for listener in list(self._listeners):
+            listener()
+
+    async def _async_update_data(self) -> Any:
+        if self.update_method is not None:
+            return await self.update_method()
+        raise NotImplementedError
+
+    async def async_refresh(self) -> None:
+        try:
+            self.data = await self._async_update_data()
+            self.last_update_success = True
+            self.last_exception = None
+        except Exception as err:
+            self.last_update_success = False
+            self.last_exception = err
+            if not isinstance(err, UpdateFailed):
+                if hasattr(self.logger, "error"):
+                    self.logger.error("Erreur coordinator %s: %s", self.name, err)
+        finally:
+            self.async_update_listeners()
+
+    async def async_request_refresh(self) -> None:
+        await self.async_refresh()
+
+    async def async_config_entry_first_refresh(self) -> None:
+        await self.async_refresh()
+        if not self.last_update_success:
+            if isinstance(self.last_exception, ConfigEntryAuthFailed):
+                raise self.last_exception
+            raise ConfigEntryNotReady(f"Update failed for {self.name}") from self.last_exception
+
+
+class CoordinatorEntity(Entity):
+    """Entité liée à un DataUpdateCoordinator conforme Home Assistant."""
+
+    def __class_getitem__(cls, item: Any) -> Any:
+        return cls
+
+    def __init__(self, coordinator: DataUpdateCoordinator, context: Any = None) -> None:
+        super().__init__()
+        self.coordinator = coordinator
+        self._coordinator_context = context
+
+    @property
+    def available(self) -> bool:
+        return bool(self.coordinator.last_update_success and self._attr_available)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self._handle_coordinator_update)
+        )
+
+    def _handle_coordinator_update(self) -> None:
+        self.async_write_ha_state()
+
+
+# ============================================================================
+# 11. SHIM SENSOR, BINARY SENSOR & BUTTON (Phase 3)
+# ============================================================================
+
+class SensorDeviceClass(str, Enum):
+    """Classes d'appareils pour capteurs numériques."""
+    BATTERY = "battery"
+    SIGNAL_STRENGTH = "signal_strength"
+    TIMESTAMP = "timestamp"
+    POWER = "power"
+    TEMPERATURE = "temperature"
+
+
+class SensorStateClass(str, Enum):
+    """Classes d'état pour capteurs statistiques."""
+    MEASUREMENT = "measurement"
+    TOTAL = "total"
+    TOTAL_INCREASING = "total_increasing"
+
+
+class SensorEntity(Entity):
+    """Classe de base SensorEntity conforme Home Assistant."""
+    _attr_native_value: Any = None
+    _attr_native_unit_of_measurement: str | None = None
+    _attr_device_class: SensorDeviceClass | None = None
+    _attr_state_class: SensorStateClass | None = None
+    _attr_suggested_display_precision: int | None = None
+
+    @property
+    def native_value(self) -> Any:
+        return self._attr_native_value
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        return self._attr_native_unit_of_measurement
+
+    @property
+    def device_class(self) -> SensorDeviceClass | None:
+        return self._attr_device_class
+
+    @property
+    def state_class(self) -> SensorStateClass | None:
+        return self._attr_state_class
+
+    @property
+    def suggested_display_precision(self) -> int | None:
+        return self._attr_suggested_display_precision
+
+    @property
+    def state(self) -> Any:
+        return self.native_value
+
+
+@dataclass
+class SensorEntityDescription(EntityDescription):
+    device_class: SensorDeviceClass | None = None
+    state_class: SensorStateClass | None = None
+    native_unit_of_measurement: str | None = None
+
+
+class BinarySensorDeviceClass(str, Enum):
+    """Classes d'appareils pour capteurs binaires."""
+    BATTERY_CHARGING = "battery_charging"
+    CONNECTIVITY = "connectivity"
+    PROBLEM = "problem"
+    PLUG = "plug"
+    RUNNING = "running"
+    POWER = "power"
+
+
+class BinarySensorEntity(Entity):
+    """Classe de base BinarySensorEntity conforme Home Assistant."""
+    _attr_is_on: bool | None = None
+    _attr_device_class: BinarySensorDeviceClass | None = None
+
+    @property
+    def is_on(self) -> bool | None:
+        return self._attr_is_on
+
+    @property
+    def device_class(self) -> BinarySensorDeviceClass | None:
+        return self._attr_device_class
+
+    @property
+    def state(self) -> str | None:
+        if self.is_on is None:
+            return None
+        return "on" if self.is_on else "off"
+
+
+@dataclass
+class BinarySensorEntityDescription(EntityDescription):
+    device_class: BinarySensorDeviceClass | None = None
+
+
+class ButtonDeviceClass(str, Enum):
+    """Classes d'appareils pour boutons d'action."""
+    RESTART = "restart"
+    UPDATE = "update"
+    IDENTIFY = "identify"
+
+
+class ButtonEntity(Entity):
+    """Classe de base ButtonEntity conforme Home Assistant."""
+    _attr_device_class: ButtonDeviceClass | None = None
+
+    @property
+    def device_class(self) -> ButtonDeviceClass | None:
+        return self._attr_device_class
+
+    async def async_press(self) -> None:
+        if hasattr(self, "press"):
+            if hasattr(self, "hass") and self.hass and hasattr(self.hass, "async_add_executor_job"):
+                await self.hass.async_add_executor_job(self.press)
+            else:
+                self.press()
+        else:
+            raise NotImplementedError
+
+    def press(self) -> None:
+        raise NotImplementedError
+
+
+@dataclass
+class ButtonEntityDescription(EntityDescription):
+    device_class: ButtonDeviceClass | None = None
+
+
+# ============================================================================
 # 7. INJECTION DANS SYS.MODULES
 # ============================================================================
 
@@ -583,14 +1059,17 @@ def install_ha_mocks() -> None:
     vol_mod.MultipleInvalid = MultipleInvalid
     sys.modules["voluptuous"] = vol_mod
 
-    # homeassistant
+    # homeassistant (Package marker required for subpackage imports)
     ha_mod = types.ModuleType("homeassistant")
+    ha_mod.__path__ = []
     sys.modules["homeassistant"] = ha_mod
 
     # homeassistant.core
     core_mod = types.ModuleType("homeassistant.core")
     core_mod.HomeAssistant = HomeAssistant
     core_mod.callback = callback
+    core_mod.State = State
+    core_mod.MockStateMachine = MockStateMachine
     sys.modules["homeassistant.core"] = core_mod
     ha_mod.core = core_mod
 
@@ -626,8 +1105,9 @@ def install_ha_mocks() -> None:
     sys.modules["homeassistant.config_entries"] = cfg_mod
     ha_mod.config_entries = cfg_mod
 
-    # homeassistant.components
+    # homeassistant.components (Package marker required)
     components_mod = types.ModuleType("homeassistant.components")
+    components_mod.__path__ = []
     sys.modules["homeassistant.components"] = components_mod
     ha_mod.components = components_mod
 
@@ -637,8 +1117,9 @@ def install_ha_mocks() -> None:
     sys.modules["homeassistant.components.zeroconf"] = zc_mod
     components_mod.zeroconf = zc_mod
 
-    # homeassistant.helpers
+    # homeassistant.helpers (Package marker required)
     helpers_mod = types.ModuleType("homeassistant.helpers")
+    helpers_mod.__path__ = []
     sys.modules["homeassistant.helpers"] = helpers_mod
     ha_mod.helpers = helpers_mod
 
@@ -647,6 +1128,7 @@ def install_ha_mocks() -> None:
     dr_mod.CONNECTION_NETWORK_MAC = CONNECTION_NETWORK_MAC
     dr_mod.DeviceEntry = DeviceEntry
     dr_mod.DeviceRegistry = DeviceRegistry
+    dr_mod.DeviceInfo = DeviceInfo
     dr_mod.async_get = lambda hass: getattr(hass, "device_registry", DeviceRegistry(hass))
     sys.modules["homeassistant.helpers.device_registry"] = dr_mod
     helpers_mod.device_registry = dr_mod
@@ -662,5 +1144,72 @@ def install_ha_mocks() -> None:
     http_mod.async_get_clientsession = lambda hass, verify_ssl=True: sys.modules["aiohttp"].ClientSession()
     sys.modules["homeassistant.helpers.aiohttp_client"] = http_mod
     helpers_mod.aiohttp_client = http_mod
+
+    # homeassistant.const
+    const_mod = types.ModuleType("homeassistant.const")
+    const_mod.Platform = Platform
+    const_mod.EntityCategory = EntityCategory
+    const_mod.CONF_HOST = "host"
+    const_mod.CONF_PORT = "port"
+    const_mod.PERCENTAGE = PERCENTAGE
+    const_mod.SIGNAL_STRENGTH_DECIBELS_MILLIWATT = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+    const_mod.UnitOfSignalStrength = UnitOfSignalStrength
+    const_mod.STATE_ON = STATE_ON
+    const_mod.STATE_OFF = STATE_OFF
+    const_mod.STATE_UNAVAILABLE = STATE_UNAVAILABLE
+    const_mod.STATE_UNKNOWN = STATE_UNKNOWN
+    sys.modules["homeassistant.const"] = const_mod
+    ha_mod.const = const_mod
+
+    # homeassistant.helpers.entity
+    entity_mod = types.ModuleType("homeassistant.helpers.entity")
+    entity_mod.Entity = Entity
+    entity_mod.DeviceInfo = DeviceInfo
+    entity_mod.EntityCategory = EntityCategory
+    entity_mod.EntityDescription = EntityDescription
+    sys.modules["homeassistant.helpers.entity"] = entity_mod
+    helpers_mod.entity = entity_mod
+
+    # homeassistant.helpers.entity_platform
+    ep_mod = types.ModuleType("homeassistant.helpers.entity_platform")
+    ep_mod.AddEntitiesCallback = Callable[..., Any]
+    sys.modules["homeassistant.helpers.entity_platform"] = ep_mod
+    helpers_mod.entity_platform = ep_mod
+
+    # homeassistant.helpers.update_coordinator
+    coord_mod = types.ModuleType("homeassistant.helpers.update_coordinator")
+    coord_mod.DataUpdateCoordinator = DataUpdateCoordinator
+    coord_mod.CoordinatorEntity = CoordinatorEntity
+    coord_mod.UpdateFailed = UpdateFailed
+    sys.modules["homeassistant.helpers.update_coordinator"] = coord_mod
+    helpers_mod.update_coordinator = coord_mod
+
+    # homeassistant.components.sensor
+    sensor_mod = types.ModuleType("homeassistant.components.sensor")
+    sensor_mod.SensorEntity = SensorEntity
+    sensor_mod.SensorDeviceClass = SensorDeviceClass
+    sensor_mod.SensorStateClass = SensorStateClass
+    sensor_mod.SensorEntityDescription = SensorEntityDescription
+    sensor_mod.DOMAIN = "sensor"
+    sys.modules["homeassistant.components.sensor"] = sensor_mod
+    components_mod.sensor = sensor_mod
+
+    # homeassistant.components.binary_sensor
+    bs_mod = types.ModuleType("homeassistant.components.binary_sensor")
+    bs_mod.BinarySensorEntity = BinarySensorEntity
+    bs_mod.BinarySensorDeviceClass = BinarySensorDeviceClass
+    bs_mod.BinarySensorEntityDescription = BinarySensorEntityDescription
+    bs_mod.DOMAIN = "binary_sensor"
+    sys.modules["homeassistant.components.binary_sensor"] = bs_mod
+    components_mod.binary_sensor = bs_mod
+
+    # homeassistant.components.button
+    btn_mod = types.ModuleType("homeassistant.components.button")
+    btn_mod.ButtonEntity = ButtonEntity
+    btn_mod.ButtonDeviceClass = ButtonDeviceClass
+    btn_mod.ButtonEntityDescription = ButtonEntityDescription
+    btn_mod.DOMAIN = "button"
+    sys.modules["homeassistant.components.button"] = btn_mod
+    components_mod.button = btn_mod
 
 install_ha_mocks()
