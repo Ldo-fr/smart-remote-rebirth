@@ -11,6 +11,7 @@ import asyncio
 from dataclasses import dataclass, field
 import datetime
 from enum import Enum
+import json
 import logging
 import os
 import sys
@@ -615,6 +616,616 @@ class MockStateMachine:
         return entity_id in self._states
 
 
+# ============================================================================
+# 6b. SHIM SERVICES, BUS, WEBHOOK & SELECTOR (Phase 4)
+# ============================================================================
+
+class MockConfig:
+    """Mock de hass.config."""
+    def __init__(self) -> None:
+        self.internal_url: str = "http://127.0.0.1:8123"
+        self.external_url: str | None = None
+        self.config_dir: str = "/config"
+
+
+class ServiceCall(dict):
+    """Représentation d'un appel de service Home Assistant compatible dict et attributs."""
+    def __init__(
+        self,
+        domain: str,
+        service: str,
+        data: dict[str, Any] | None = None,
+        service_data: dict[str, Any] | None = None,
+        blocking: bool = False,
+        return_response: bool = False,
+        target: dict[str, Any] | None = None,
+        context: Any = None,
+    ) -> None:
+        call_data = dict(service_data or data or {})
+        super().__init__(
+            domain=domain,
+            service=service,
+            data=call_data,
+            service_data=call_data,
+            blocking=blocking,
+            return_response=return_response,
+            target=target,
+            context=context,
+        )
+
+    def __getitem__(self, item: str) -> Any:
+        if item in self:
+            return super().__getitem__(item)
+        data = self.get("data")
+        if isinstance(data, dict) and item in data:
+            return data[item]
+        raise KeyError(item)
+
+    @property
+    def domain(self) -> str:
+        return self["domain"]
+
+    @property
+    def service(self) -> str:
+        return self["service"]
+
+    @property
+    def data(self) -> dict[str, Any]:
+        return self["data"]
+
+    @property
+    def service_data(self) -> dict[str, Any]:
+        return self["service_data"]
+
+    @property
+    def blocking(self) -> bool:
+        return self["blocking"]
+
+    @property
+    def return_response(self) -> bool:
+        return self["return_response"]
+
+    @property
+    def target(self) -> dict[str, Any] | None:
+        return self["target"]
+
+    @property
+    def context(self) -> Any:
+        return self["context"]
+
+
+class MockServices:
+    """Mock du registre de services Home Assistant (hass.services)."""
+
+    def __init__(self, hass: Any = None) -> None:
+        self.hass = hass
+        self.calls: list[ServiceCall] = []
+        self._services: dict[tuple[str, str], Callable] = {}
+
+    def async_register(
+        self,
+        domain: str,
+        service: str,
+        service_func: Callable,
+        schema: Any = None,
+    ) -> None:
+        self._services[(domain, service)] = service_func
+
+    register = async_register
+
+    def has_service(self, domain: str, service: str) -> bool:
+        return (domain, service) in self._services
+
+    def async_has_service(self, domain: str, service: str) -> bool:
+        return self.has_service(domain, service)
+
+    async def async_call(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict[str, Any] | None = None,
+        blocking: bool = False,
+        return_response: bool = False,
+        target: dict[str, Any] | None = None,
+        context: Any = None,
+    ) -> Any:
+        call = ServiceCall(
+            domain=domain,
+            service=service,
+            data=service_data,
+            service_data=service_data,
+            blocking=blocking,
+            return_response=return_response,
+            target=target,
+            context=context,
+        )
+        self.calls.append(call)
+
+        handler = self._services.get((domain, service))
+        if handler:
+            res = handler(call)
+            if asyncio.iscoroutine(res):
+                res = await res
+            return res if return_response else None
+        return None
+
+    def call(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict[str, Any] | None = None,
+        blocking: bool = False,
+        return_response: bool = False,
+        target: dict[str, Any] | None = None,
+        context: Any = None,
+    ) -> Any:
+        call = ServiceCall(
+            domain=domain,
+            service=service,
+            data=service_data,
+            service_data=service_data,
+            blocking=blocking,
+            return_response=return_response,
+            target=target,
+            context=context,
+        )
+        self.calls.append(call)
+        handler = self._services.get((domain, service))
+        if handler and not asyncio.iscoroutinefunction(handler):
+            res = handler(call)
+            if return_response:
+                return res
+        return None
+
+    def async_remove(self, domain: str, service: str) -> None:
+        self._services.pop((domain, service), None)
+
+    remove = async_remove
+
+    def reset(self) -> None:
+        self.calls.clear()
+        self._services.clear()
+
+
+@dataclass
+class Event:
+    """Représentation d'un événement sur le bus Home Assistant."""
+    event_type: str
+    data: dict[str, Any] = field(default_factory=dict)
+    origin: Any = None
+    time_fired: Any = None
+    context: Any = None
+
+    def __post_init__(self) -> None:
+        if self.time_fired is None:
+            self.time_fired = datetime.datetime.now(datetime.timezone.utc)
+
+    def __getitem__(self, item: str) -> Any:
+        if hasattr(self, item) and item in ("event_type", "data", "origin", "time_fired", "context"):
+            return getattr(self, item)
+        if item in self.data:
+            return self.data[item]
+        raise KeyError(item)
+
+    def get(self, item: str, default: Any = None) -> Any:
+        if hasattr(self, item) and item in ("event_type", "data", "origin", "time_fired", "context"):
+            return getattr(self, item)
+        return self.data.get(item, default)
+
+    def __contains__(self, item: str) -> bool:
+        return item in ("event_type", "data", "origin", "time_fired", "context") or item in self.data
+
+
+class MockBus:
+    """Mock du bus d'événements Home Assistant (hass.bus)."""
+
+    def __init__(self, hass: Any = None) -> None:
+        self.hass = hass
+        self.events: list[Event] = []
+        self._listeners: dict[str, list[Callable]] = {}
+
+    def async_listen(self, event_type: str, listener: Callable[[Event], Any]) -> Callable[[], None]:
+        if event_type not in self._listeners:
+            self._listeners[event_type] = []
+        self._listeners[event_type].append(listener)
+
+        def remove_listener() -> None:
+            if event_type in self._listeners and listener in self._listeners[event_type]:
+                self._listeners[event_type].remove(listener)
+
+        return remove_listener
+
+    listen = async_listen
+
+    def async_listen_once(self, event_type: str, listener: Callable[[Event], Any]) -> Callable[[], None]:
+        def _once_wrapper(event: Event) -> Any:
+            remove_listener()
+            return listener(event)
+
+        remove_listener = self.async_listen(event_type, _once_wrapper)
+        return remove_listener
+
+    listen_once = async_listen_once
+
+    def async_fire(
+        self,
+        event_type: str,
+        event_data: dict[str, Any] | None = None,
+        origin: Any = None,
+        context: Any = None,
+    ) -> None:
+        event = Event(event_type=event_type, data=dict(event_data or {}), origin=origin, context=context)
+        self.events.append(event)
+
+        matching_listeners = list(self._listeners.get(event_type, [])) + list(self._listeners.get("*", []))
+        for listener in matching_listeners:
+            try:
+                if asyncio.iscoroutinefunction(listener):
+                    if self.hass and hasattr(self.hass, "async_create_task"):
+                        self.hass.async_create_task(listener(event))
+                    else:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            loop.create_task(listener(event))
+                else:
+                    res = listener(event)
+                    if asyncio.iscoroutine(res):
+                        if self.hass and hasattr(self.hass, "async_create_task"):
+                            self.hass.async_create_task(res)
+                        else:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                loop.create_task(res)
+            except Exception:
+                pass
+
+    def fire(
+        self,
+        event_type: str,
+        event_data: dict[str, Any] | None = None,
+        origin: Any = None,
+        context: Any = None,
+    ) -> None:
+        self.async_fire(event_type, event_data, origin, context)
+
+    def reset(self) -> None:
+        self.events.clear()
+        self._listeners.clear()
+
+
+DEFAULT_WEBHOOK_METHODS = ["POST", "PUT"]
+
+
+@dataclass
+class WebhookInfo:
+    domain: str
+    name: str
+    webhook_id: str
+    handler: Callable
+    allowed_methods: Sequence[str] = field(default_factory=lambda: list(DEFAULT_WEBHOOK_METHODS))
+    local_only: bool = False
+
+
+class MockWebhookManager:
+    """Mock du gestionnaire de webhooks Home Assistant."""
+
+    def __init__(self, hass: Any = None) -> None:
+        self.hass = hass
+        self._webhooks: dict[str, WebhookInfo] = {}
+
+    def async_register(
+        self,
+        domain: str,
+        name: str,
+        webhook_id: str,
+        handler: Callable,
+        allowed_methods: Sequence[str] | None = None,
+        local_only: bool = False,
+    ) -> None:
+        methods = list(allowed_methods) if allowed_methods is not None else list(DEFAULT_WEBHOOK_METHODS)
+        self._webhooks[webhook_id] = WebhookInfo(
+            domain=domain,
+            name=name,
+            webhook_id=webhook_id,
+            handler=handler,
+            allowed_methods=methods,
+            local_only=local_only,
+        )
+
+    def async_unregister(self, webhook_id: str) -> None:
+        self._webhooks.pop(webhook_id, None)
+
+    def async_generate_url(self, webhook_id: str) -> str:
+        base_url = "http://127.0.0.1:8123"
+        if self.hass and hasattr(self.hass, "config"):
+            if getattr(self.hass.config, "internal_url", None):
+                base_url = self.hass.config.internal_url
+            elif hasattr(self.hass.config, "api") and isinstance(self.hass.config.api, dict):
+                base_url = self.hass.config.api.get("base_url", base_url)
+        return f"{base_url.rstrip('/')}/api/webhook/{webhook_id}"
+
+    def async_generate_path(self, webhook_id: str) -> str:
+        return f"/api/webhook/{webhook_id}"
+
+    async def async_handle_webhook(self, webhook_id: str, request: Any) -> Any:
+        entry = self._webhooks.get(webhook_id)
+        web = sys.modules.get("aiohttp.web")
+        if not entry:
+            if web and hasattr(web, "Response"):
+                return web.Response(status=404, text=f"Webhook {webhook_id} not found")
+            return None
+
+        if hasattr(request, "method") and request.method not in entry.allowed_methods:
+            if web and hasattr(web, "Response"):
+                return web.Response(status=405, text=f"Method {request.method} not allowed")
+            return None
+
+        return await entry.handler(self.hass, webhook_id, request)
+
+    def get_webhook(self, webhook_id: str) -> WebhookInfo | None:
+        return self._webhooks.get(webhook_id)
+
+    def has_webhook(self, webhook_id: str) -> bool:
+        return webhook_id in self._webhooks
+
+    @property
+    def webhooks(self) -> list[WebhookInfo]:
+        return list(self._webhooks.values())
+
+
+def _get_webhook_manager(hass: Any) -> MockWebhookManager:
+    if hasattr(hass, "webhook") and isinstance(hass.webhook, MockWebhookManager):
+        return hass.webhook
+    if isinstance(getattr(hass, "data", None), dict) and "webhook" in hass.data:
+        data_webhook = hass.data["webhook"]
+        if isinstance(data_webhook, MockWebhookManager):
+            return data_webhook
+    mgr = MockWebhookManager(hass)
+    try:
+        hass.webhook = mgr
+    except Exception:
+        pass
+    return mgr
+
+
+def webhook_async_register(
+    hass: Any,
+    domain: str,
+    name: str,
+    webhook_id: str,
+    handler: Callable,
+    allowed_methods: Sequence[str] | None = None,
+    local_only: bool = False,
+) -> None:
+    mgr = _get_webhook_manager(hass)
+    mgr.async_register(domain, name, webhook_id, handler, allowed_methods, local_only)
+
+
+def webhook_async_unregister(hass: Any, webhook_id: str) -> None:
+    mgr = _get_webhook_manager(hass)
+    mgr.async_unregister(webhook_id)
+
+
+def webhook_async_generate_url(hass: Any, webhook_id: str) -> str:
+    mgr = _get_webhook_manager(hass)
+    return mgr.async_generate_url(webhook_id)
+
+
+def webhook_async_generate_path(*args: Any, **kwargs: Any) -> str:
+    if "webhook_id" in kwargs:
+        webhook_id = kwargs["webhook_id"]
+    elif len(args) == 1:
+        webhook_id = args[0]
+    elif len(args) >= 2:
+        webhook_id = args[1]
+    else:
+        raise TypeError("async_generate_path missing required argument 'webhook_id'")
+    return f"/api/webhook/{webhook_id}"
+
+
+async def webhook_async_handle_webhook(hass: Any, webhook_id: str, request: Any) -> Any:
+    mgr = _get_webhook_manager(hass)
+    return await mgr.async_handle_webhook(webhook_id, request)
+
+
+class Selector:
+    """Classe de base pour les sélecteurs Home Assistant."""
+    def __init__(self, config: Any = None) -> None:
+        self.config = config
+
+    def __call__(self, data: Any) -> Any:
+        return data
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} config={self.config!r}>"
+
+
+@dataclass
+class EntitySelectorConfig:
+    """Configuration du sélecteur d'entités."""
+    include_entities: list[str] | None = None
+    exclude_entities: list[str] | None = None
+    domain: str | list[str] | None = None
+    device_class: str | list[str] | None = None
+    multiple: bool = False
+    filter: Any = None
+
+    def __init__(self, **kwargs: Any) -> None:
+        self.include_entities = kwargs.get("include_entities")
+        self.exclude_entities = kwargs.get("exclude_entities")
+        self.domain = kwargs.get("domain")
+        self.device_class = kwargs.get("device_class")
+        self.multiple = kwargs.get("multiple", False)
+        self.filter = kwargs.get("filter")
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
+class EntitySelector(Selector):
+    """Sélecteur d'entités compatible voluptuous."""
+    def __init__(self, config: EntitySelectorConfig | dict[str, Any] | None = None) -> None:
+        if isinstance(config, dict):
+            config = EntitySelectorConfig(**config)
+        super().__init__(config or EntitySelectorConfig())
+
+    def __call__(self, data: Any) -> Any:
+        if data is None:
+            return [] if (self.config and getattr(self.config, "multiple", False)) else None
+        if self.config and getattr(self.config, "multiple", False):
+            if isinstance(data, (list, tuple, set)):
+                return list(data)
+            return [str(data)]
+        if isinstance(data, (list, tuple)) and len(data) == 1:
+            return data[0]
+        return data
+
+
+class SelectSelectorMode(str, Enum):
+    LIST = "list"
+    DROPDOWN = "dropdown"
+
+
+@dataclass
+class SelectSelectorConfig:
+    options: list[Any] = field(default_factory=list)
+    multiple: bool = False
+    custom_value: bool = False
+    mode: SelectSelectorMode = SelectSelectorMode.DROPDOWN
+    translation_key: str | None = None
+
+    def __init__(self, **kwargs: Any) -> None:
+        self.options = kwargs.get("options", [])
+        self.multiple = kwargs.get("multiple", False)
+        self.custom_value = kwargs.get("custom_value", False)
+        self.mode = kwargs.get("mode", SelectSelectorMode.DROPDOWN)
+        self.translation_key = kwargs.get("translation_key")
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
+class SelectSelector(Selector):
+    def __init__(self, config: SelectSelectorConfig | dict[str, Any] | None = None) -> None:
+        if isinstance(config, dict):
+            config = SelectSelectorConfig(**config)
+        super().__init__(config or SelectSelectorConfig())
+
+
+@dataclass
+class BooleanSelectorConfig:
+    pass
+
+
+class BooleanSelector(Selector):
+    def __init__(self, config: BooleanSelectorConfig | dict[str, Any] | None = None) -> None:
+        if isinstance(config, dict):
+            config = BooleanSelectorConfig()
+        super().__init__(config or BooleanSelectorConfig())
+
+    def __call__(self, data: Any) -> bool:
+        return bool(data)
+
+
+class NumberSelectorMode(str, Enum):
+    BOX = "box"
+    SLIDER = "slider"
+
+
+@dataclass
+class NumberSelectorConfig:
+    min: float | None = None
+    max: float | None = None
+    step: float | None = None
+    unit_of_measurement: str | None = None
+    mode: NumberSelectorMode = NumberSelectorMode.BOX
+
+    def __init__(self, **kwargs: Any) -> None:
+        self.min = kwargs.get("min", 0.0)
+        self.max = kwargs.get("max", 100.0)
+        self.step = kwargs.get("step", 1.0)
+        self.unit_of_measurement = kwargs.get("unit_of_measurement")
+        self.mode = kwargs.get("mode", NumberSelectorMode.BOX)
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
+class NumberSelector(Selector):
+    def __init__(self, config: NumberSelectorConfig | dict[str, Any] | None = None) -> None:
+        if isinstance(config, dict):
+            config = NumberSelectorConfig(**config)
+        super().__init__(config or NumberSelectorConfig())
+
+
+def selector_factory(config: dict[str, Any]) -> Selector:
+    """Fabrique générique de sélecteur à partir d'un dictionnaire."""
+    if "entity" in config:
+        cfg = config["entity"]
+        if isinstance(cfg, dict):
+            return EntitySelector(EntitySelectorConfig(**cfg))
+        return EntitySelector(cfg)
+    if "select" in config:
+        cfg = config["select"]
+        if isinstance(cfg, dict):
+            return SelectSelector(SelectSelectorConfig(**cfg))
+        return SelectSelector(cfg)
+    if "boolean" in config:
+        return BooleanSelector(BooleanSelectorConfig())
+    if "number" in config:
+        cfg = config["number"]
+        if isinstance(cfg, dict):
+            return NumberSelector(NumberSelectorConfig(**cfg))
+        return NumberSelector(cfg)
+    return Selector(config)
+
+
+class MockWebResponse:
+    """Mock de aiohttp.web.Response."""
+    def __init__(
+        self,
+        *,
+        body: bytes | str | None = None,
+        text: str | None = None,
+        status: int = 200,
+        content_type: str = "text/plain",
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        self.status = status
+        if text is not None:
+            self._text = text
+            self._body = text.encode("utf-8")
+        elif isinstance(body, str):
+            self._text = body
+            self._body = body.encode("utf-8")
+        elif isinstance(body, bytes):
+            self._body = body
+            self._text = body.decode("utf-8", errors="replace")
+        else:
+            self._text = ""
+            self._body = b""
+        self.content_type = content_type
+        self.headers = headers or {}
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+    @property
+    def body(self) -> bytes:
+        return self._body
+
+    def __repr__(self) -> str:
+        return f"<Response status={self.status} text={self.text!r}>"
+
+
+def mock_json_response(data: Any = None, status: int = 200, **kwargs: Any) -> MockWebResponse:
+    """Mock de aiohttp.web.json_response."""
+    return MockWebResponse(
+        text=json.dumps(data),
+        status=status,
+        content_type="application/json",
+        **kwargs,
+    )
+
+
 class HomeAssistant:
     """Mock de l'instance HomeAssistant Core."""
     def __init__(self) -> None:
@@ -622,6 +1233,10 @@ class HomeAssistant:
         self.states = MockStateMachine()
         self.config_entries = MockConfigEntriesManager(self)
         self.device_registry = DeviceRegistry(self)
+        self.services = MockServices(self)
+        self.bus = MockBus(self)
+        self.webhook = MockWebhookManager(self)
+        self.config = MockConfig()
         try:
             self.loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -1070,6 +1685,12 @@ def install_ha_mocks() -> None:
     core_mod.callback = callback
     core_mod.State = State
     core_mod.MockStateMachine = MockStateMachine
+    core_mod.ServiceCall = ServiceCall
+    core_mod.MockServices = MockServices
+    core_mod.ServiceRegistry = MockServices
+    core_mod.Event = Event
+    core_mod.MockBus = MockBus
+    core_mod.EventBus = MockBus
     sys.modules["homeassistant.core"] = core_mod
     ha_mod.core = core_mod
 
@@ -1117,6 +1738,19 @@ def install_ha_mocks() -> None:
     sys.modules["homeassistant.components.zeroconf"] = zc_mod
     components_mod.zeroconf = zc_mod
 
+    # homeassistant.components.webhook
+    webhook_mod = types.ModuleType("homeassistant.components.webhook")
+    webhook_mod.async_register = webhook_async_register
+    webhook_mod.async_unregister = webhook_async_unregister
+    webhook_mod.async_generate_url = webhook_async_generate_url
+    webhook_mod.async_generate_path = webhook_async_generate_path
+    webhook_mod.async_handle_webhook = webhook_async_handle_webhook
+    webhook_mod.MockWebhookManager = MockWebhookManager
+    webhook_mod.WebhookInfo = WebhookInfo
+    webhook_mod.DEFAULT_METHODS = DEFAULT_WEBHOOK_METHODS
+    sys.modules["homeassistant.components.webhook"] = webhook_mod
+    components_mod.webhook = webhook_mod
+
     # homeassistant.helpers (Package marker required)
     helpers_mod = types.ModuleType("homeassistant.helpers")
     helpers_mod.__path__ = []
@@ -1145,6 +1779,38 @@ def install_ha_mocks() -> None:
     sys.modules["homeassistant.helpers.aiohttp_client"] = http_mod
     helpers_mod.aiohttp_client = http_mod
 
+    # homeassistant.helpers.selector
+    selector_mod = types.ModuleType("homeassistant.helpers.selector")
+    selector_mod.Selector = Selector
+    selector_mod.EntitySelector = EntitySelector
+    selector_mod.EntitySelectorConfig = EntitySelectorConfig
+    selector_mod.SelectSelector = SelectSelector
+    selector_mod.SelectSelectorConfig = SelectSelectorConfig
+    selector_mod.SelectSelectorMode = SelectSelectorMode
+    selector_mod.NumberSelector = NumberSelector
+    selector_mod.NumberSelectorConfig = NumberSelectorConfig
+    selector_mod.NumberSelectorMode = NumberSelectorMode
+    selector_mod.BooleanSelector = BooleanSelector
+    selector_mod.BooleanSelectorConfig = BooleanSelectorConfig
+    selector_mod.selector = selector_factory
+    sys.modules["homeassistant.helpers.selector"] = selector_mod
+    helpers_mod.selector = selector_mod
+
+    # aiohttp.web enrichment
+    web_mod = sys.modules.get("aiohttp.web")
+    if web_mod is None:
+        web_mod = types.ModuleType("aiohttp.web")
+        sys.modules["aiohttp.web"] = web_mod
+        if "aiohttp" in sys.modules:
+            sys.modules["aiohttp"].web = web_mod
+    if not hasattr(web_mod, "Response"):
+        web_mod.Response = MockWebResponse
+    if not hasattr(web_mod, "json_response"):
+        web_mod.json_response = mock_json_response
+    aiohttp_mod = sys.modules.get("aiohttp")
+    if aiohttp_mod and not hasattr(aiohttp_mod, "web"):
+        aiohttp_mod.web = web_mod
+
     # homeassistant.const
     const_mod = types.ModuleType("homeassistant.const")
     const_mod.Platform = Platform
@@ -1158,6 +1824,9 @@ def install_ha_mocks() -> None:
     const_mod.STATE_OFF = STATE_OFF
     const_mod.STATE_UNAVAILABLE = STATE_UNAVAILABLE
     const_mod.STATE_UNKNOWN = STATE_UNKNOWN
+    const_mod.MATCH_ALL = "*"
+    const_mod.EVENT_HOMEASSISTANT_STARTED = "homeassistant_started"
+    const_mod.EVENT_HOMEASSISTANT_STOP = "homeassistant_stop"
     sys.modules["homeassistant.const"] = const_mod
     ha_mod.const = const_mod
 

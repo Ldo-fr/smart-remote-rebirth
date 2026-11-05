@@ -24,6 +24,11 @@ Couvre l'intégralité des 23 scénarios :
 21. test_reauth_flow_success
 22. test_options_flow_init_and_save
 23. test_lifecycle_setup_and_unload
+24. test_options_flow_form_rendering_with_selectors
+25. test_options_flow_save_with_entities_and_trigger_resync
+26. test_options_flow_backward_compatibility_legacy_keys
+27. test_webhook_lifecycle_in_setup_and_unload
+28. test_background_sync_scheduling_on_setup_and_options
 
 Compatible duale : pytest (avec pytest-asyncio) et python3 -m unittest discover tests -v.
 """
@@ -47,7 +52,7 @@ from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState, SOURCE_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import AbortFlow, FlowResultType
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, selector
 
 from custom_components.sevenhugs_smart_remote import async_setup_entry, async_unload_entry
 from custom_components.sevenhugs_smart_remote.config_flow import (
@@ -60,6 +65,7 @@ from custom_components.sevenhugs_smart_remote.const import (
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
     CONF_CONTROLLER_ID,
+    CONF_ENTITIES,
     CONF_HOST,
     CONF_POLLING_INTERVAL,
     CONF_PORT,
@@ -69,10 +75,14 @@ from custom_components.sevenhugs_smart_remote.const import (
     CONF_SESSION_READ_KEY,
     CONF_SESSION_WRITE_KEY,
     CONF_TIMEOUT,
+    CONF_TRIGGER_RESYNC,
     DEFAULT_AUTO_SYNC_WEBHOOKS,
+    DEFAULT_ENTITIES,
+    DEFAULT_EXPOSED_DOMAINS,
     DEFAULT_POLLING_INTERVAL,
     DEFAULT_PORT,
     DEFAULT_TIMEOUT,
+    DEFAULT_TRIGGER_RESYNC,
     DOMAIN,
     ERROR_ALREADY_CONFIGURED,
     ERROR_CANNOT_CONNECT,
@@ -708,6 +718,232 @@ async def test_lifecycle_setup_and_unload() -> None:
         await server.stop()
 
 
+
+# ============================================================================
+# TESTS PHASE 4 MILESTONE 4 : OPTIONS ENRICHIES, WEBHOOK LIFECYCLE & SYNC
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_options_flow_form_rendering_with_selectors() -> None:
+    """Scénario 24 : Rendu du formulaire d'options avec EntitySelector et case trigger_resync."""
+    entry = ConfigEntry(
+        entry_id="opt_render_entry",
+        domain=DOMAIN,
+        title="Sevenhugs Smart Remote (5726)",
+        data={},
+        options={
+            CONF_ENTITIES: ["light.living_room_ceiling", "switch.kitchen_socket"],
+            CONF_POLLING_INTERVAL: 45,
+            CONF_AUTO_SYNC_WEBHOOKS: True,
+            CONF_TIMEOUT: 12,
+        },
+    )
+    handler = SevenhugsOptionsFlowHandler(entry)
+    form = await handler.async_step_init(None)
+
+    assert form["type"] == FlowResultType.FORM
+    assert form["step_id"] == "init"
+    assert "data_schema" in form
+
+    schema = form["data_schema"].schema
+
+    # 1. Vérification de CONF_ENTITIES
+    entity_val = None
+    for k, v in schema.items():
+        if getattr(k, "schema", None) == CONF_ENTITIES:
+            entity_val = v
+            def_val = k.default() if callable(getattr(k, "default", None)) else getattr(k, "default", None)
+            assert def_val == ["light.living_room_ceiling", "switch.kitchen_socket"]
+            break
+    assert entity_val is not None
+    assert isinstance(entity_val, selector.EntitySelector)
+    assert entity_val.config.multiple is True
+    assert entity_val.config.domain == DEFAULT_EXPOSED_DOMAINS
+
+    # 2. Vérification de CONF_TRIGGER_RESYNC
+    trigger_found = False
+    for k, v in schema.items():
+        if getattr(k, "schema", None) == CONF_TRIGGER_RESYNC:
+            trigger_found = True
+            def_val = k.default() if callable(getattr(k, "default", None)) else getattr(k, "default", None)
+            assert def_val is False
+            break
+    assert trigger_found is True
+
+    # 3. Vérification des 3 options de base
+    keys = [getattr(k, "schema", k) for k in schema.keys()]
+    assert CONF_POLLING_INTERVAL in keys
+    assert CONF_AUTO_SYNC_WEBHOOKS in keys
+    assert CONF_TIMEOUT in keys
+
+
+@pytest.mark.asyncio
+async def test_options_flow_save_with_entities_and_trigger_resync() -> None:
+    """Scénario 25 : Sauvegarde des options enrichies avec entités sélectionnées et trigger_resync."""
+    entry = ConfigEntry(
+        entry_id="opt_save_entry",
+        domain=DOMAIN,
+        title="Sevenhugs Smart Remote (5726)",
+        data={},
+        options={},
+    )
+    handler = SevenhugsOptionsFlowHandler(entry)
+
+    user_input = {
+        CONF_ENTITIES: ["light.living_room", "switch.fan", "scene.good_night"],
+        CONF_TRIGGER_RESYNC: True,
+        CONF_POLLING_INTERVAL: 90,
+        CONF_AUTO_SYNC_WEBHOOKS: True,
+        CONF_TIMEOUT: 15,
+    }
+
+    result = await handler.async_step_init(user_input)
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_ENTITIES] == ["light.living_room", "switch.fan", "scene.good_night"]
+    assert result["data"][CONF_TRIGGER_RESYNC] is True
+    assert result["data"][CONF_POLLING_INTERVAL] == 90
+    assert result["data"][CONF_AUTO_SYNC_WEBHOOKS] is True
+    assert result["data"][CONF_TIMEOUT] == 15
+
+
+@pytest.mark.asyncio
+async def test_options_flow_backward_compatibility_legacy_keys() -> None:
+    """Scénario 26 : Compatibilité ascendante stricte lors de la soumission des 3 seules clés historiques."""
+    entry = ConfigEntry(
+        entry_id="opt_legacy_entry",
+        domain=DOMAIN,
+        title="Sevenhugs Smart Remote (5726)",
+        data={},
+        options={
+            CONF_POLLING_INTERVAL: 30,
+            CONF_AUTO_SYNC_WEBHOOKS: True,
+            CONF_TIMEOUT: 10,
+        },
+    )
+    handler = SevenhugsOptionsFlowHandler(entry)
+
+    legacy_input = {
+        CONF_POLLING_INTERVAL: 120,
+        CONF_AUTO_SYNC_WEBHOOKS: False,
+        CONF_TIMEOUT: 20,
+    }
+
+    result = await handler.async_step_init(legacy_input)
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_POLLING_INTERVAL] == 120
+    assert result["data"][CONF_AUTO_SYNC_WEBHOOKS] is False
+    assert result["data"][CONF_TIMEOUT] == 20
+
+
+@pytest.mark.asyncio
+async def test_webhook_lifecycle_in_setup_and_unload() -> None:
+    """Scénario 27 : Enregistrement et désenregistrement du webhook local lors de setup/unload."""
+    server = MockSmartRemoteServer()
+    await server.start()
+    try:
+        hass = HomeAssistant()
+        entry = ConfigEntry(
+            entry_id="entry_wh_lifecycle_test",
+            domain=DOMAIN,
+            title="Sevenhugs Smart Remote (5726)",
+            data={
+                CONF_HOST: server.host,
+                CONF_PORT: server.port,
+                CONF_SERIAL_NUMBER: "a06fe048b48b260139",
+                CONF_REMOTE_ID: "5726",
+                CONF_CONTROLLER_ID: "ctrl-uuid-wh-test",
+                CONF_CLIENT_PRIVATE_KEY: "01" * 32,
+                CONF_CLIENT_PUBLIC_KEY: "02" * 32,
+                CONF_REMOTE_PUBLIC_KEY: server.remote_pk.hex(),
+                CONF_SESSION_WRITE_KEY: "03" * 32,
+                CONF_SESSION_READ_KEY: "04" * 32,
+            },
+        )
+
+        expected_webhook_id = f"sevenhugs_{entry.entry_id}"
+        assert expected_webhook_id not in getattr(hass.webhook, "_webhooks", {})
+
+        setup_ok = await async_setup_entry(hass, entry)
+        assert setup_ok is True
+        assert expected_webhook_id in hass.webhook._webhooks
+        wh_info = hass.webhook._webhooks[expected_webhook_id]
+        assert wh_info.local_only is True
+        assert "POST" in wh_info.allowed_methods
+
+        runtime_data = hass.data[DOMAIN][entry.entry_id]
+        assert runtime_data.get("webhook_id") == expected_webhook_id
+        assert runtime_data.get("injector") is not None
+
+        unload_ok = await async_unload_entry(hass, entry)
+        assert unload_ok is True
+        assert expected_webhook_id not in hass.webhook._webhooks
+    finally:
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_background_sync_scheduling_on_setup_and_options() -> None:
+    """Scénario 28 : Planification en tâche de fond de la synchronisation lors du setup et changement d'options."""
+    server = MockSmartRemoteServer()
+    await server.start()
+    try:
+        hass = HomeAssistant()
+        entry = ConfigEntry(
+            entry_id="entry_bg_sync_test",
+            domain=DOMAIN,
+            title="Sevenhugs Smart Remote (5726)",
+            data={
+                CONF_HOST: server.host,
+                CONF_PORT: server.port,
+                CONF_SERIAL_NUMBER: "a06fe048b48b260139",
+                CONF_REMOTE_ID: "5726",
+                CONF_CONTROLLER_ID: "ctrl-uuid-sync-test",
+                CONF_CLIENT_PRIVATE_KEY: "01" * 32,
+                CONF_CLIENT_PUBLIC_KEY: "02" * 32,
+                CONF_REMOTE_PUBLIC_KEY: server.remote_pk.hex(),
+                CONF_SESSION_WRITE_KEY: "03" * 32,
+                CONF_SESSION_READ_KEY: "04" * 32,
+            },
+            options={
+                CONF_ENTITIES: ["light.living_room"],
+                CONF_AUTO_SYNC_WEBHOOKS: True,
+                CONF_TRIGGER_RESYNC: True,
+            },
+        )
+
+        created_tasks = []
+        orig_async_create_task = hass.async_create_task
+
+        def spy_async_create_task(target: Any, *args: Any, **kwargs: Any) -> Any:
+            created_tasks.append(target)
+            return orig_async_create_task(target)
+
+        hass.async_create_task = spy_async_create_task
+
+        with patch("custom_components.sevenhugs_smart_remote.lua_injector.SevenhugsLuaInjector.async_sync_entities") as mock_sync:
+            async def fake_sync(*args, **kwargs):
+                return True
+            mock_sync.side_effect = fake_sync
+
+            setup_ok = await async_setup_entry(hass, entry)
+            assert setup_ok is True
+            assert mock_sync.called
+            assert len(created_tasks) > 0
+
+        with patch.object(hass.config_entries, "async_reload") as mock_reload:
+            async def fake_reload(eid):
+                return True
+            mock_reload.side_effect = fake_reload
+
+            from custom_components.sevenhugs_smart_remote import update_listener
+            await update_listener(hass, entry)
+            mock_reload.assert_called_once_with(entry.entry_id)
+
+        await async_unload_entry(hass, entry)
+    finally:
+        await server.stop()
+
+
 # ============================================================================
 # EXÉCUTION UNITTEST & PYTEST DUAL-COMPATIBLE
 # ============================================================================
@@ -736,11 +972,17 @@ ALL_CONFIG_FLOW_TESTS = [
     test_reauth_flow_success,
     test_options_flow_init_and_save,
     test_lifecycle_setup_and_unload,
+    # Phase 4 Milestone 4 tests:
+    test_options_flow_form_rendering_with_selectors,
+    test_options_flow_save_with_entities_and_trigger_resync,
+    test_options_flow_backward_compatibility_legacy_keys,
+    test_webhook_lifecycle_in_setup_and_unload,
+    test_background_sync_scheduling_on_setup_and_options,
 ]
 
 
 def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
-    """Protocole unittest load_tests pour exécuter les 23 tests asynchrones."""
+    """Protocole unittest load_tests pour exécuter les 28 tests asynchrones."""
     suite = unittest.TestSuite()
     for fn in ALL_CONFIG_FLOW_TESTS:
         tc = unittest.FunctionTestCase(lambda f=fn: asyncio.run(f()), description=fn.__name__)

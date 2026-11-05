@@ -61,6 +61,8 @@
         "title": "Sevenhugs Smart Remote Options",
         "description": "Configure operational settings for your Smart Remote.",
         "data": {
+          "entities": "Entities exposed on the remote",
+          "trigger_resync": "Trigger immediate resync to remote",
           "polling_interval": "Polling interval (seconds)",
           "auto_sync_webhooks": "Automatically synchronize webhooks",
           "timeout": "Request timeout (seconds)"

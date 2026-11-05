@@ -61,6 +61,8 @@
         "title": "Options de la Sevenhugs Smart Remote",
         "description": "Configurer les paramètres opérationnels de votre télécommande.",
         "data": {
+          "entities": "Entités exposées sur la télécommande",
+          "trigger_resync": "Déclencher la resynchronisation immédiate vers la télécommande",
           "polling_interval": "Intervalle de rafraîchissement (secondes)",
           "auto_sync_webhooks": "Synchronisation automatique des webhooks",
           "timeout": "Délai d'attente des requêtes (secondes)"
