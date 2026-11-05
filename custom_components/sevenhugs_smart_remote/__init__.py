@@ -1,6 +1,6 @@
 """Composant Home Assistant Sevenhugs Smart Remote (SR1A).
 
-Phase 2 : Initialisation, cycle de vie et gestion du composant.
+Phase 3 : Initialisation, cycle de vie, coordinateur de données et forwarding multi-plateformes.
 """
 
 from __future__ import annotations
@@ -20,10 +20,13 @@ if os.path.isdir(_PYLIB_DIR) and _PYLIB_DIR not in sys.path:
 try:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
+    from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
     from homeassistant.helpers.aiohttp_client import async_create_clientsession
 except ImportError:
     ConfigEntry = Any  # type: ignore[misc,assignment]
     HomeAssistant = Any  # type: ignore[misc,assignment]
+    ConfigEntryAuthFailed = Exception  # type: ignore[misc,assignment]
+    ConfigEntryNotReady = Exception  # type: ignore[misc,assignment]
 
     def async_create_clientsession(*args: Any, **kwargs: Any) -> Any:
         connector = kwargs.get("connector")
@@ -31,32 +34,70 @@ except ImportError:
 
 from .client import AsyncSmartRemoteClient, SevenhugsAuthError, SevenhugsConnectionError
 from .const import CONF_HOST, CONF_PORT, DEFAULT_PORT, DOMAIN, PLATFORMS
+from .coordinator import SevenhugsDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 __all__ = [
     "DOMAIN",
+    "PLATFORMS",
     "AsyncSmartRemoteClient",
     "SevenhugsAuthError",
     "SevenhugsConnectionError",
+    "SevenhugsData",
+    "SevenhugsDataUpdateCoordinator",
     "async_setup_entry",
     "async_unload_entry",
+    "update_listener",
 ]
 
 
 class SevenhugsData(dict):
-    """Conteneur des données d'exécution de la télécommande."""
+    """Conteneur des données d'exécution de la télécommande.
 
-    def __init__(self, client: AsyncSmartRemoteClient, session: aiohttp.ClientSession) -> None:
-        super().__init__({"client": client, "session": session})
+    Garantit la compatibilité ascendante et descendante totale (Phases 1, 2 et 3) :
+    - Accès attribut direct : runtime_data.client, runtime_data.session, runtime_data.coordinator
+    - Accès dictionnaire : runtime_data["client"], runtime_data["session"], runtime_data["coordinator"]
+    - Délégation transparente d'attributs proxy vers client (ex. runtime_data.host)
+    - Synchronisation bidirectionnelle automatique entre dictionnaire et attributs
+    """
+
+    def __init__(
+        self,
+        client: AsyncSmartRemoteClient,
+        session: aiohttp.ClientSession,
+        coordinator: Any | None = None,
+    ) -> None:
+        super().__init__({
+            "client": client,
+            "session": session,
+            "coordinator": coordinator,
+        })
         self.client = client
         self.session = session
+        self.coordinator = coordinator
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        super().__setitem__(key, value)
+        if key in ("client", "session", "coordinator"):
+            super().__setattr__(key, value)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        if name in ("client", "session", "coordinator"):
+            super().__setitem__(name, value)
 
     def __getattr__(self, name: str) -> Any:
         try:
             return self[name]
         except KeyError:
-            return getattr(self.client, name)
+            pass
+
+        client = getattr(self, "client", None)
+        if client is not None:
+            return getattr(client, name)
+
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -86,25 +127,50 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         keys=dict(entry.data),
     )
 
-    # Double stockage : hass.data (requis par R1) et entry.runtime_data (HA 2024+)
-    runtime_data = SevenhugsData(client=client, session=session)
+    # Coordinateur de données (Requirement R1 & R4)
+    coordinator = SevenhugsDataUpdateCoordinator(hass, client, entry)
+
+    # Double stockage préalable : hass.data (requis par R1) et entry.runtime_data (HA 2024+)
+    # Permet à async_unload_entry de nettoyer proprement les ressources si first_refresh échoue
+    runtime_data = SevenhugsData(client=client, session=session, coordinator=coordinator)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = runtime_data
     if hasattr(entry, "runtime_data"):
         entry.runtime_data = runtime_data
 
-    # Écouteur de rechargement lors de la modification des options
-    if hasattr(entry, "add_update_listener") and hasattr(entry, "async_on_unload"):
-        entry.async_on_unload(entry.add_update_listener(update_listener))
+    # Premier rafraîchissement d'état initial, écouteur d'options et aiguillage des plateformes avec rollback en cas d'erreur
+    try:
+        await coordinator.async_config_entry_first_refresh()
+        if not getattr(coordinator, "last_update_success", True):
+            exc = getattr(coordinator, "last_exception", None)
+            if isinstance(exc, ConfigEntryAuthFailed):
+                raise exc
+            raise ConfigEntryNotReady(f"Initial refresh failed: {exc}")
 
-    # Forward platform setups si supporté par l'instance Home Assistant (Phase 3)
-    if PLATFORMS and hasattr(hass, "config_entries") and hasattr(hass.config_entries, "async_forward_entry_setups"):
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        # Écouteur de rechargement lors de la modification des options
+        if hasattr(entry, "add_update_listener") and hasattr(entry, "async_on_unload"):
+            entry.async_on_unload(entry.add_update_listener(update_listener))
+
+        # Forward entry setups vers PLATFORMS (sensor, binary_sensor, button)
+        if PLATFORMS and hasattr(hass, "config_entries") and hasattr(hass.config_entries, "async_forward_entry_setups"):
+            await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    except Exception:
+        await async_unload_entry(hass, entry)
+        raise
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Décharge l'intégration et libère proprement la session et le socket TCP."""
+    """Décharge l'intégration et libère proprement les plateformes, la session et le socket TCP."""
+    # 1. Déchargement ordonné des plateformes
+    unload_ok = True
+    if PLATFORMS and hasattr(hass, "config_entries") and hasattr(hass.config_entries, "async_unload_platforms"):
+        unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    if not unload_ok:
+        return False
+
+    # 2. Récupération et nettoyage des descripteurs de connexion et sessions TCP
     data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if not data and hasattr(entry, "runtime_data"):
         data = getattr(entry, "runtime_data", None)
@@ -117,9 +183,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if session and hasattr(session, "close") and not getattr(session, "closed", False):
             await session.close()
 
+    # 3. Réinitialisation explicite de runtime_data
     if hasattr(entry, "runtime_data"):
         entry.runtime_data = None
 
+    # 4. Nettoyage de l'espace de domaine si vide
     if DOMAIN in hass.data and not hass.data[DOMAIN]:
         hass.data.pop(DOMAIN, None)
 
