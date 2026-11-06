@@ -54,3 +54,4 @@ jobs:
 
       - name: Run Hassfest
         uses: home-assistant/actions/hassfest@master
+

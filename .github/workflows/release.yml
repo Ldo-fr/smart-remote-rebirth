@@ -127,3 +127,4 @@ jobs:
           files: sevenhugs_smart_remote.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
