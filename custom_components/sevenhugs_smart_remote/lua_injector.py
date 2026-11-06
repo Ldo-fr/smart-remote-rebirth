@@ -78,9 +78,13 @@ DEFAULT_DOMAIN_ACTIONS: dict[str, str] = {
     "light": "toggle",
     "switch": "toggle",
     "scene": "turn_on",
+    "script": "turn_on",
+    "button": "press",
+    "cover": "toggle",
+    "fan": "toggle",
     "media_player": "toggle",
     "input_boolean": "toggle",
-    "fan": "toggle",
+    "automation": "trigger",
 }
 
 __all__ = [

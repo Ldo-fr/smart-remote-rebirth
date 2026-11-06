@@ -38,6 +38,7 @@ except ImportError:
 from .client import AsyncSmartRemoteClient, SevenhugsAuthError, SevenhugsConnectionError
 from .const import (
     CONF_AUTO_SYNC_WEBHOOKS,
+    CONF_DELETE_DEVICES,
     CONF_HOST,
     CONF_PORT,
     CONF_TRIGGER_RESYNC,
@@ -190,6 +191,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         # Synchronisation en arrière-plan non-bloquante des entités vers la télécommande (Phase 4 / R2, R3, R4)
         options = getattr(entry, "options", {}) or {}
+        delete_devices = options.get(CONF_DELETE_DEVICES) if isinstance(options, dict) else None
+        if isinstance(delete_devices, list) and delete_devices:
+            async def _async_process_deletions(to_delete: list[str]) -> None:
+                try:
+                    await client.async_delete_remote_items(to_delete)
+                    if hasattr(coordinator, "async_request_refresh"):
+                        await coordinator.async_request_refresh()
+                except Exception as del_err:
+                    _LOGGER.warning("Erreur lors de la suppression d'appareils sur la télécommande: %s", del_err)
+
+            if hasattr(hass, "async_create_task"):
+                hass.async_create_task(_async_process_deletions(list(delete_devices)))
+            else:
+                asyncio.create_task(_async_process_deletions(list(delete_devices)))
+
         auto_sync = options.get(CONF_AUTO_SYNC_WEBHOOKS, DEFAULT_AUTO_SYNC_WEBHOOKS)
         trigger_resync = options.get(CONF_TRIGGER_RESYNC, False)
         if trigger_resync or auto_sync:

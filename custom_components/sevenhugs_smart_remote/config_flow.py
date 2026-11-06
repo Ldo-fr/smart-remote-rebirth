@@ -31,6 +31,7 @@ from .const import (
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
     CONF_CONTROLLER_ID,
+    CONF_DELETE_DEVICES,
     CONF_ENTITIES,
     CONF_HOST,
     CONF_POLLING_INTERVAL,
@@ -459,6 +460,44 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
         super().__init__(config_entry)
         self.config_entry = config_entry
 
+    def _get_remote_carousel_options(self) -> list[dict[str, str]]:
+        """Extrait la liste des appareils/groupes présents dans le carrousel de la télécommande."""
+        hass = getattr(self, "hass", None)
+        if not hass or not hasattr(hass, "data") or not isinstance(hass.data, dict):
+            return []
+
+        runtime_data = hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+        if not runtime_data:
+            return []
+
+        coordinator = getattr(runtime_data, "coordinator", None) or (
+            runtime_data.get("coordinator") if isinstance(runtime_data, dict) else None
+        )
+        coord_data = getattr(coordinator, "data", None) if coordinator else None
+        if not isinstance(coord_data, dict):
+            return []
+
+        raw_settings = coord_data.get("raw_settings", {})
+        if not isinstance(raw_settings, dict):
+            return []
+
+        carousel = raw_settings.get("carousel_order", [])
+        if not isinstance(carousel, list):
+            return []
+
+        select_options: list[dict[str, str]] = []
+        for item in carousel:
+            if not isinstance(item, dict) or not item.get("id"):
+                continue
+            item_id = str(item["id"])
+            name = str(item.get("name") or item_id)
+            category = str(item.get("category") or "device")
+            select_options.append({
+                "value": item_id,
+                "label": f"{name} ({category})",
+            })
+        return select_options
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Formulaire de gestion des options."""
         if user_input is not None:
@@ -474,6 +513,8 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
         else:
             default_entities = []
 
+        remote_options = self._get_remote_carousel_options()
+
         data_schema = vol.Schema({
             vol.Optional(
                 CONF_ENTITIES,
@@ -482,6 +523,16 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
                 selector.EntitySelectorConfig(
                     multiple=True,
                     domain=DEFAULT_EXPOSED_DOMAINS,
+                )
+            ),
+            vol.Optional(
+                CONF_DELETE_DEVICES,
+                default=[],
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=remote_options,
+                    multiple=True,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional(

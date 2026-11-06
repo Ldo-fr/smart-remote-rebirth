@@ -403,7 +403,7 @@ class AdversarialMilestone1Harness:
         assert isinstance(CONF_ENTITIES, str) and CONF_ENTITIES == "entities"
         assert isinstance(CONF_TRIGGER_RESYNC, str) and CONF_TRIGGER_RESYNC == "trigger_resync"
         assert isinstance(DEFAULT_EXPOSED_DOMAINS, list)
-        assert DEFAULT_EXPOSED_DOMAINS == ["light", "switch", "scene", "media_player"]
+        assert all(d in DEFAULT_EXPOSED_DOMAINS for d in ("light", "switch", "scene", "media_player"))
         assert isinstance(EVENT_SEVENHUGS_BUTTON_PRESSED, str) and EVENT_SEVENHUGS_BUTTON_PRESSED == "sevenhugs_button_pressed"
         assert isinstance(WEBHOOK_ID_PREFIX, str) and WEBHOOK_ID_PREFIX == "sevenhugs_"
 

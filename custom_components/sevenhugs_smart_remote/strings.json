@@ -62,6 +62,7 @@
         "description": "Configure operational settings for your Smart Remote.",
         "data": {
           "entities": "Entities exposed on the remote",
+          "delete_devices": "Remote devices to permanently delete",
           "trigger_resync": "Trigger immediate resync to remote",
           "polling_interval": "Polling interval (seconds)",
           "auto_sync_webhooks": "Automatically synchronize webhooks",

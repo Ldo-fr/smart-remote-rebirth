@@ -279,13 +279,13 @@ class TestMilestone3LifecycleAndLocalization(unittest.IsolatedAsyncioTestCase):
         s_leaves = get_leaf_keys(strings)
         fr_leaves = get_leaf_keys(fr)
 
-        # 3. Parité stricte 1:1 des clés feuilles (40 clés en Phase 3, 42 en Phase 4)
+        # 3. Parité stricte 1:1 des clés feuilles (40 clés en Phase 3, 42-43 en Phase 4)
         self.assertEqual(
             set(s_leaves.keys()),
             set(fr_leaves.keys()),
             f"Différence de structure détectée: {set(s_leaves.keys()) ^ set(fr_leaves.keys())}",
         )
-        self.assertIn(len(s_leaves), (40, 42))
+        self.assertIn(len(s_leaves), (40, 42, 43))
 
         # 4. Présence de l'intégralité des 8 entités créées en Milestone 2
         expected_entities = [

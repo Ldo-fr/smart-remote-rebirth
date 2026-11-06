@@ -944,6 +944,71 @@ async def test_background_sync_scheduling_on_setup_and_options() -> None:
         await server.stop()
 
 
+@pytest.mark.asyncio
+async def test_options_flow_delete_remote_devices() -> None:
+    """Scénario 29 : Sélection et suppression définitive d'appareils du carrousel de la télécommande."""
+    from custom_components.sevenhugs_smart_remote.const import CONF_DELETE_DEVICES
+    from unittest.mock import AsyncMock
+
+    hass = HomeAssistant()
+    entry = ConfigEntry(
+        entry_id="entry_delete_devices_test",
+        domain=DOMAIN,
+        title="Sevenhugs Smart Remote (5726)",
+        data={},
+        options={},
+    )
+    mock_coord = unittest.mock.MagicMock()
+    mock_coord.data = {
+        "raw_settings": {
+            "carousel_order": [
+                {"id": "sevenhugs.control.hue:spot1", "name": "Hue Spot 1", "category": "lights"},
+                {"id": "sevenhugs.control.groups:934fdf6a", "name": "plafond", "category": "lights"},
+            ]
+        }
+    }
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"coordinator": mock_coord}
+
+    handler = SevenhugsOptionsFlowHandler(entry)
+    handler.hass = hass
+
+    form = await handler.async_step_init(None)
+    assert form["type"] == FlowResultType.FORM
+    schema = form["data_schema"].schema
+    delete_sel = None
+    for k, v in schema.items():
+        if getattr(k, "schema", None) == CONF_DELETE_DEVICES:
+            delete_sel = v
+            break
+    assert delete_sel is not None
+    assert len(delete_sel.config.options) == 2
+    assert delete_sel.config.options[0]["value"] == "sevenhugs.control.hue:spot1"
+    assert delete_sel.config.options[0]["label"] == "Hue Spot 1 (lights)"
+
+    # Test de client.async_delete_remote_items
+    from custom_components.sevenhugs_smart_remote.client import AsyncSmartRemoteClient
+    client = AsyncSmartRemoteClient(host="127.0.0.1", session=unittest.mock.MagicMock(), keys={})
+    calls: list[tuple[str, str, Any]] = []
+
+    async def fake_request(method: str, path: str, json_data: Any = None) -> Any:
+        calls.append((method, path, json_data))
+        if method == "GET" and path == "/api/devices":
+            return [{"category": "lights", "devices_info": [{"package_id": "sevenhugs.control.hue", "device_id": "spot1", "name": "Hue Spot 1"}]}]
+        if method == "GET" and path == "/api/components-groups":
+            return [{"id": "934fdf6a", "package_id": "sevenhugs.control.groups", "name": "plafond"}]
+        if method == "GET" and path == "/api/settings":
+            return {"carousel_order": [{"id": "sevenhugs.control.hue:spot1"}, {"id": "sevenhugs.control.groups:934fdf6a"}]}
+        return {}
+
+    client.async_request = AsyncMock(side_effect=fake_request)
+    deleted = await client.async_delete_remote_items(["sevenhugs.control.hue:spot1", "sevenhugs.control.groups:934fdf6a"])
+    assert deleted == 2
+    delete_calls = [c for c in calls if c[0] == "DELETE"]
+    assert len(delete_calls) == 2
+    assert delete_calls[0][1] == "/api/devices"
+    assert delete_calls[1][1] == "/api/components-groups"
+
+
 # ============================================================================
 # EXÉCUTION UNITTEST & PYTEST DUAL-COMPATIBLE
 # ============================================================================
@@ -978,6 +1043,7 @@ ALL_CONFIG_FLOW_TESTS = [
     test_options_flow_backward_compatibility_legacy_keys,
     test_webhook_lifecycle_in_setup_and_unload,
     test_background_sync_scheduling_on_setup_and_options,
+    test_options_flow_delete_remote_devices,
 ]
 
 

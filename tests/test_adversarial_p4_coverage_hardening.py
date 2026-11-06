@@ -461,7 +461,6 @@ class TestAdversarialLuaInjectorCoverage(unittest.IsolatedAsyncioTestCase):
             "vacuum.roborock",
             "camera.doorbell",
             "lock.front_door",
-            "cover.curtains",
             "sensor.temperature",
             "binary_sensor.motion",
         ):
@@ -475,9 +474,13 @@ class TestAdversarialLuaInjectorCoverage(unittest.IsolatedAsyncioTestCase):
             "light.living_room": "toggle",
             "switch.power_strip": "toggle",
             "scene.romantic": "turn_on",
+            "script.morning": "turn_on",
+            "button.doorbell": "press",
+            "cover.curtains": "toggle",
             "media_player.soundbar": "toggle",
             "input_boolean.vacation_mode": "toggle",
             "fan.ceiling": "toggle",
+            "automation.wakeup": "trigger",
         }
 
         for entity_id, expected_action in expected_mappings.items():

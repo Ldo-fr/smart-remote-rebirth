@@ -234,7 +234,7 @@ def verify_const_phase4() -> None:
     )
 
     assert CONF_ENTITIES == "entities"
-    assert DEFAULT_EXPOSED_DOMAINS == ["light", "switch", "scene", "media_player"] or list(DEFAULT_EXPOSED_DOMAINS) == ["light", "switch", "scene", "media_player"]
+    assert "light" in DEFAULT_EXPOSED_DOMAINS and "switch" in DEFAULT_EXPOSED_DOMAINS and "scene" in DEFAULT_EXPOSED_DOMAINS and "media_player" in DEFAULT_EXPOSED_DOMAINS
     assert EVENT_SEVENHUGS_BUTTON_PRESSED == "sevenhugs_button_pressed"
     assert WEBHOOK_ID_PREFIX == "sevenhugs_"
     assert CONF_TRIGGER_RESYNC == "trigger_resync"

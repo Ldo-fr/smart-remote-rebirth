@@ -62,6 +62,7 @@
         "description": "Configurer les paramètres opérationnels de votre télécommande.",
         "data": {
           "entities": "Entités exposées sur la télécommande",
+          "delete_devices": "Appareils de la télécommande à supprimer définitivement",
           "trigger_resync": "Déclencher la resynchronisation immédiate vers la télécommande",
           "polling_interval": "Intervalle de rafraîchissement (secondes)",
           "auto_sync_webhooks": "Synchronisation automatique des webhooks",

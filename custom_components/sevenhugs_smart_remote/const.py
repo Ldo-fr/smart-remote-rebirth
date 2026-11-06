@@ -36,12 +36,19 @@ DEFAULT_TIMEOUT = 10
 
 # Options avancées et entités exposées (Phase 4 / R3)
 CONF_ENTITIES = "entities"
+CONF_DELETE_DEVICES = "delete_devices"
 CONF_TRIGGER_RESYNC = "trigger_resync"
 DEFAULT_EXPOSED_DOMAINS: list[str] = [
     "light",
     "switch",
     "scene",
+    "script",
+    "button",
+    "cover",
+    "fan",
     "media_player",
+    "input_boolean",
+    "automation",
 ]
 DEFAULT_ENTITIES: list[str] = []
 DEFAULT_TRIGGER_RESYNC: bool = False

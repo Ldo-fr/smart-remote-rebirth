@@ -683,3 +683,70 @@ class AsyncSmartRemoteClient:
         if st_done not in (200, 204):
             raise SevenhugsConnectionError(f"Validation finale de l'assistant Webhooks échouée ({st_done})")
         return True
+
+    async def async_delete_remote_items(self, item_ids: list[str]) -> int:
+        """Supprime définitivement des appareils (/api/devices) ou des groupes (/api/components-groups) de la télécommande."""
+        if not item_ids:
+            return 0
+
+        devices_map: dict[tuple[str, str], dict] = {}
+        try:
+            devices_raw = await self.async_request("GET", "/api/devices")
+            if isinstance(devices_raw, list):
+                for cat in devices_raw:
+                    if isinstance(cat, dict):
+                        for d in cat.get("devices_info", []):
+                            if isinstance(d, dict):
+                                pkg = str(d.get("package_id", ""))
+                                dev = str(d.get("device_id", ""))
+                                if pkg and dev:
+                                    devices_map[(pkg, dev)] = d
+        except Exception as err:
+            _LOGGER.debug("Impossible de pré-charger /api/devices avant suppression: %s", err)
+
+        groups_map: dict[str, dict] = {}
+        try:
+            groups_raw = await self.async_request("GET", "/api/components-groups")
+            if isinstance(groups_raw, list):
+                for g in groups_raw:
+                    if isinstance(g, dict) and g.get("id"):
+                        groups_map[str(g["id"])] = g
+        except Exception as err:
+            _LOGGER.debug("Impossible de pré-charger /api/components-groups avant suppression: %s", err)
+
+        deleted_count = 0
+        deleted_set: set[str] = set()
+
+        for raw_id in item_ids:
+            if not isinstance(raw_id, str) or ":" not in raw_id:
+                continue
+            item_id = raw_id.strip()
+            pkg_id, _, dev_id = item_id.partition(":")
+            try:
+                if pkg_id == "sevenhugs.control.groups":
+                    payload = groups_map.get(dev_id, {"id": dev_id, "package_id": "sevenhugs.control.groups"})
+                    await self.async_request("DELETE", "/api/components-groups", payload)
+                else:
+                    payload = devices_map.get((pkg_id, dev_id), {"package_id": pkg_id, "device_id": dev_id})
+                    await self.async_request("DELETE", "/api/devices", payload)
+                deleted_count += 1
+                deleted_set.add(item_id)
+                _LOGGER.info("Appareil/groupe supprimé de la télécommande : %s", item_id)
+            except Exception as err:
+                _LOGGER.warning("Échec de la suppression de %s sur la télécommande : %s", item_id, err)
+
+        if deleted_set:
+            try:
+                settings = await self.async_request("GET", "/api/settings")
+                if isinstance(settings, dict) and isinstance(settings.get("carousel_order"), list):
+                    old_carousel = settings["carousel_order"]
+                    new_carousel = [
+                        item for item in old_carousel
+                        if not (isinstance(item, dict) and item.get("id") in deleted_set)
+                    ]
+                    if len(new_carousel) != len(old_carousel):
+                        await self.async_request("PATCH", "/api/settings", {"carousel_order": new_carousel})
+            except Exception as err:
+                _LOGGER.debug("Mise à jour optionnelle de carousel_order ignorée : %s", err)
+
+        return deleted_count
