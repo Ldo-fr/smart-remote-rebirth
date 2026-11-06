@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom%20Repository-orange.svg)](https://hacs.xyz/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1%2B%20%7C%202026.11%2B-blue.svg)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-0.1.0--alpha-yellow.svg)](https://github.com/LudovicLaly/smart-remote-rebirth/releases)
+[![Version](https://img.shields.io/badge/version-0.1.0--alpha-yellow.svg)](https://github.com/Ldo-fr/smart-remote-rebirth/releases)
 [![Build & Tests](https://img.shields.io/badge/tests-330%20passed%20(100%25)-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -49,7 +49,7 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 2. Ouvrez **HACS / Marketplace** dans la barre latérale de Home Assistant.
 3. Cliquez sur le menu en haut à droite (trois petits points) > **Dépôts personnalisés** (*Custom repositories*).
 4. Renseignez :
-   - **Dépôt** : `https://github.com/LudovicLaly/smart-remote-rebirth`
+   - **Dépôt** : `https://github.com/Ldo-fr/smart-remote-rebirth`
    - **Type** : `Intégration`
 5. Cliquez sur **Ajouter**, puis recherchez **Sevenhugs Smart Remote**.
 6. Cliquez sur **Télécharger**, puis **redémarrez Home Assistant**.
@@ -60,7 +60,7 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 
 1. Téléchargez ou clonez ce dépôt :
    ```bash
-   git clone https://github.com/LudovicLaly/smart-remote-rebirth.git
+   git clone https://github.com/Ldo-fr/smart-remote-rebirth.git
    ```
 2. Copiez le dossier `custom_components/sevenhugs_smart_remote` dans le répertoire `config/custom_components/` de votre Home Assistant :
    ```bash

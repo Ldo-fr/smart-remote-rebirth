@@ -52,7 +52,8 @@ jobs:
       - name: Run Ruff Linter
         uses: astral-sh/ruff-action@v3
         with:
-          args: "check custom_components/sevenhugs_smart_remote/"
+          args: "check"
+          src: "custom_components/sevenhugs_smart_remote"
 
   test:
     name: Run Unit & Integration Tests

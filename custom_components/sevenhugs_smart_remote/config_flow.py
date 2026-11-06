@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
+
 import aiohttp
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow, FlowResult
-from homeassistant.helpers import device_registry as dr, selector
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from .client import AsyncSmartRemoteClient, SevenhugsAuthError, SevenhugsConnectionError
@@ -41,20 +42,17 @@ from .const import (
     DEFAULT_TIMEOUT,
     DEFAULT_TRIGGER_RESYNC,
     DOMAIN,
-    ERROR_ALREADY_CONFIGURED,
     ERROR_CANNOT_CONNECT,
     ERROR_INVALID_PIN,
     ERROR_PAIRING_FAILED,
     ERROR_REMOTE_BUSY,
     ERROR_TIMEOUT_CONNECT,
-    ERROR_UNKNOWN,
     HARDWARE_VERSION,
+    MANUFACTURER,
     MAX_POLLING_INTERVAL,
     MIN_POLLING_INTERVAL,
     MODEL_SR1A,
-    MANUFACTURER,
     TIMEOUT_CONNECT_CHECK,
-    TIMEOUT_PAIR_SETUP_M1,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -193,7 +191,7 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors["base"] = ERROR_CANNOT_CONNECT
                 await client.close()
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 errors["base"] = ERROR_TIMEOUT_CONNECT
                 await client.close()
 

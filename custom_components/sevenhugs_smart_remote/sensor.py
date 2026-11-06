@@ -9,7 +9,6 @@ Fournit les entités de télémétrie matérielle :
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,

@@ -7,8 +7,8 @@ de 3 échecs consécutifs, la mise en cache locale de télémétrie, et le réve
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
 import logging
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
