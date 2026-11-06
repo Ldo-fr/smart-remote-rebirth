@@ -1,4 +1,4 @@
-"""Tests unitaires pour custom_components/sevenhugs_smart_remote/crypto.py.
+"""Tests unitaires pour custom_components/smart_remote_rebirth/crypto.py.
 
 Valide :
 - TLV8 : types primitifs, découpage automatique (> 255 octets), réassemblage et rejet des paquets tronqués.
@@ -22,7 +22,7 @@ import pytest
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
-from custom_components.sevenhugs_smart_remote.crypto import (
+from custom_components.smart_remote_rebirth.crypto import (
     API_NONCE,
     NONCE_PS_MSG05,
     NONCE_PS_MSG06,

@@ -42,7 +42,7 @@ Native **Home Assistant** integration (compatible with HACS / Marketplace) and l
 | **Local Graphical Pairing (Config Flow)** | ✅ Operational | Automatic mDNS discovery (`_smart_remote._tcp.local.`), 8-digit PIN entry in Home Assistant UI, non-blocking asynchronous SRP-6a computation. |
 | **Real-time Telemetry (Sensors)** | ✅ Operational | Battery percentage (`%`), Wi-Fi signal strength / RSSI (`dBm`), charging dock status (`binary_sensor`). |
 | **Bidirectional Control (Local Webhooks)** | ✅ Operational | Secure (`local_only=True`) touch screen button presses reception triggering instantaneous HA services (`light`, `switch`, `scene`). |
-| **Automation Events** | ✅ Operational | Systematic firing of the `sevenhugs_button_pressed` event on the Home Assistant event bus. |
+| **Automation Events** | ✅ Operational | Systematic firing of the `smart_remote_button_pressed` event on the Home Assistant event bus. |
 | **Deep Sleep Management** | ✅ Operational | Tolerance to Wi-Fi sleep cycles when the remote sleeps and seamless keep-alive reconnection when picked up. |
 | **Entity Selection (Options Flow)** | ✅ Operational | Graphical UI in Home Assistant to select and configure exposed entities and scenes. |
 | **Lua Assistant Injector** | ✅ Operational | Automated button configuration pushed directly to the remote's embedded HTTP server. |
@@ -61,7 +61,7 @@ Native **Home Assistant** integration (compatible with HACS / Marketplace) and l
 4. Fill in:
    - **Repository**: `https://github.com/Ldo-fr/smart-remote-rebirth`
    - **Type**: `Integration`
-5. Click **Add**, then search for **Sevenhugs Smart Remote**.
+5. Click **Add**, then search for **Smart Remote Rebirth**.
 6. Click **Download**, then **restart Home Assistant**.
 
 ---
@@ -72,9 +72,9 @@ Native **Home Assistant** integration (compatible with HACS / Marketplace) and l
    ```bash
    git clone https://github.com/Ldo-fr/smart-remote-rebirth.git
    ```
-2. Copy the `custom_components/sevenhugs_smart_remote` folder into your Home Assistant's `config/custom_components/` directory:
+2. Copy the `custom_components/smart_remote_rebirth` folder into your Home Assistant's `config/custom_components/` directory:
    ```bash
-   cp -r smart-remote-rebirth/custom_components/sevenhugs_smart_remote /path/to/your/config/custom_components/
+   cp -r smart-remote-rebirth/custom_components/smart_remote_rebirth /path/to/your/config/custom_components/
    ```
 3. **Restart Home Assistant**.
 
@@ -85,7 +85,7 @@ Native **Home Assistant** integration (compatible with HACS / Marketplace) and l
 Once the integration is installed and Home Assistant has restarted:
 
 1. Navigate to **Settings > Devices & Services > Add Integration**.
-2. Search for **Sevenhugs Smart Remote**.
+2. Search for **Smart Remote Rebirth**.
 3. **Guided Pairing**:
    - If your remote is powered on and connected to the same Wi-Fi network, it will be **discovered automatically** via mDNS. Otherwise, manually enter its local IP address.
    - Click **Next**. The integration initiates the SRP-6a hardware calculation (~16 seconds).

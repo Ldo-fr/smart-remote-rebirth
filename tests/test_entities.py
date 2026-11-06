@@ -73,7 +73,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity, UpdateFa
 import tests.conftest
 import aiohttp
 
-from custom_components.sevenhugs_smart_remote import (
+from custom_components.smart_remote_rebirth import (
     DOMAIN,
     PLATFORMS,
     AsyncSmartRemoteClient,
@@ -82,24 +82,24 @@ from custom_components.sevenhugs_smart_remote import (
     async_setup_entry,
     async_unload_entry,
 )
-from custom_components.sevenhugs_smart_remote.binary_sensor import (
+from custom_components.smart_remote_rebirth.binary_sensor import (
     PARALLEL_UPDATES as BINARY_SENSOR_PARALLEL_UPDATES,
     SevenhugsChargingBinarySensor,
     SevenhugsConnectivityBinarySensor,
     async_setup_entry as binary_sensor_setup_entry,
 )
-from custom_components.sevenhugs_smart_remote.button import (
+from custom_components.smart_remote_rebirth.button import (
     PARALLEL_UPDATES as BUTTON_PARALLEL_UPDATES,
     SevenhugsBackupConfigButton,
     SevenhugsForceSyncButton,
     SevenhugsPingButton,
     async_setup_entry as button_setup_entry,
 )
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.client import (
     SevenhugsAuthError,
     SevenhugsConnectionError,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_HOST,
     CONF_PORT,
     CONF_REMOTE_ID,
@@ -109,8 +109,8 @@ from custom_components.sevenhugs_smart_remote.const import (
     MANUFACTURER,
     MODEL_SR1A,
 )
-from custom_components.sevenhugs_smart_remote.entity import SevenhugsBaseEntity
-from custom_components.sevenhugs_smart_remote.sensor import (
+from custom_components.smart_remote_rebirth.entity import SevenhugsBaseEntity
+from custom_components.smart_remote_rebirth.sensor import (
     PARALLEL_UPDATES as SENSOR_PARALLEL_UPDATES,
     SevenhugsActiveScreenSensor,
     SevenhugsBatterySensor,
@@ -181,7 +181,7 @@ class TestSevenhugsBaseEntity(unittest.IsolatedAsyncioTestCase):
         self.entry = ConfigEntry(
             entry_id="base_entity_entry_001",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -216,8 +216,9 @@ class TestSevenhugsBaseEntity(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(dev_info.manufacturer, MANUFACTURER)
         self.assertEqual(dev_info.manufacturer, "Sevenhugs")
         self.assertEqual(dev_info.model, MODEL_SR1A)
-        self.assertEqual(dev_info.model, "Smart Remote 1A (SR1A)")
+        self.assertEqual(dev_info.model, "SR1A")
         self.assertEqual(dev_info.name, f"{DEFAULT_NAME} (5726)")
+        self.assertEqual(dev_info.name, "Smart Remote (5726)")
         self.assertEqual(dev_info.sw_version, "v0.76.4")
         self.assertEqual(dev_info.hw_version, HARDWARE_VERSION)
         self.assertEqual(dev_info.hw_version, "FCC ID: 2AEVC-SR1A")
@@ -301,7 +302,7 @@ class TestSevenhugsSensorPlatform(unittest.IsolatedAsyncioTestCase):
         self.entry = ConfigEntry(
             entry_id="sensor_entry_001",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -399,7 +400,7 @@ class TestSevenhugsBinarySensorPlatform(unittest.IsolatedAsyncioTestCase):
         self.entry = ConfigEntry(
             entry_id="bsensor_entry_001",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -505,7 +506,7 @@ class TestSevenhugsButtonPlatform(unittest.IsolatedAsyncioTestCase):
         self.entry = ConfigEntry(
             entry_id="button_entry_001",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -651,7 +652,7 @@ class TestComponentLifecycleAndPlatformForwarding(unittest.IsolatedAsyncioTestCa
         self.entry = ConfigEntry(
             entry_id="lifecycle_entry_full_001",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: self.server.host,
                 CONF_PORT: self.server.port,

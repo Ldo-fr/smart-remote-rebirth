@@ -2,16 +2,16 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connexion à la Sevenhugs Smart Remote",
-        "description": "Entrez l'adresse IP ou le nom d'hôte de votre Sevenhugs Smart Remote.",
+        "title": "Connexion à la Smart Remote",
+        "description": "Entrez l'adresse IP ou le nom d'hôte de votre Smart Remote.",
         "data": {
           "host": "Adresse IP / Hôte",
           "port": "Port"
         }
       },
       "zeroconf_confirm": {
-        "title": "Associer votre Sevenhugs Smart Remote",
-        "description": "La télécommande Sevenhugs Smart Remote (Série : {sn}) a été détectée à l'adresse {host}. Souhaitez-vous démarrer la procédure d'appairage sécurisé ?",
+        "title": "Associer votre Smart Remote",
+        "description": "La télécommande Smart Remote (Série : {sn}) a été détectée à l'adresse {host}. Souhaitez-vous démarrer la procédure d'appairage sécurisé ?",
         "data": {}
       },
       "pair_init": {
@@ -27,15 +27,15 @@
         }
       },
       "reconfigure": {
-        "title": "Reconfigurer la Sevenhugs Smart Remote",
+        "title": "Reconfigurer la Smart Remote",
         "description": "Mettre à jour l'adresse IP ou le nom d'hôte de votre télécommande.",
         "data": {
           "host": "Adresse IP / Hôte"
         }
       },
       "reauth_confirm": {
-        "title": "Réauthentifier la Sevenhugs Smart Remote",
-        "description": "Les clés de sécurité de la Sevenhugs Smart Remote ({host}) ne sont plus valides. Souhaitez-vous relancer l'appairage ?",
+        "title": "Réauthentifier la Smart Remote",
+        "description": "Les clés de sécurité de la Smart Remote ({host}) ne sont plus valides. Souhaitez-vous relancer l'appairage ?",
         "data": {}
       }
     },
@@ -45,7 +45,7 @@
       "remote_busy": "La télécommande réinitialise sa session de sécurité. Veuillez réessayer dans quelques secondes.",
       "invalid_pin": "Le code PIN saisi est incorrect ou a expiré. La télécommande a réinitialisé la session : fermez cette fenêtre et recommencez pour afficher un nouveau code.",
       "pairing_failed": "Échec du jumelage. La session sur la télécommande a expiré : fermez cette fenêtre et recommencez pour afficher un nouveau code.",
-      "already_configured": "Cette télécommande Sevenhugs est déjà configurée dans Home Assistant.",
+      "already_configured": "Cette télécommande Smart Remote est déjà configurée dans Home Assistant.",
       "unknown": "Une erreur inattendue est survenue. Consultez les journaux d'erreurs de Home Assistant."
     },
     "abort": {
@@ -58,7 +58,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Options de la Sevenhugs Smart Remote",
+        "title": "Options Smart Remote Rebirth",
         "description": "Configurer les paramètres opérationnels de votre télécommande.",
         "data": {
           "entities": "Entités exposées sur la télécommande",

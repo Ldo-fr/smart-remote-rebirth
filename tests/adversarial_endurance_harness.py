@@ -30,12 +30,12 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.client import (
     AsyncSmartRemoteClient,
     SevenhugsAuthError,
     SevenhugsConnectionError,
 )
-from custom_components.sevenhugs_smart_remote.crypto import (
+from custom_components.smart_remote_rebirth.crypto import (
     API_NONCE,
     SRP_G,
     SRP_N,
@@ -326,7 +326,7 @@ async def run_network_endurance_tests() -> dict[str, Any]:
         # 3.3 Test de timeout prolongé sur Pair-Verify (M1 et M3)
         server.stall_duration = 0.25
         # Monkeypatch temporaire du timeout pour tester le comportement en cas de dépassement
-        import custom_components.sevenhugs_smart_remote.client as client_mod
+        import custom_components.smart_remote_rebirth.client as client_mod
         orig_ct = client_mod.aiohttp.ClientTimeout
         client_mod.aiohttp.ClientTimeout = lambda total: 0.05
 

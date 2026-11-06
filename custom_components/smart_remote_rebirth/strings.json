@@ -2,16 +2,16 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Sevenhugs Smart Remote",
-        "description": "Enter the IP address or hostname of your Sevenhugs Smart Remote.",
+        "title": "Connect to Smart Remote",
+        "description": "Enter the IP address or hostname of your Smart Remote.",
         "data": {
           "host": "Host / IP Address",
           "port": "Port"
         }
       },
       "zeroconf_confirm": {
-        "title": "Discovered Sevenhugs Smart Remote",
-        "description": "Discovered Sevenhugs Smart Remote (Serial: {sn}) at {host}. Do you want to pair this remote?",
+        "title": "Discovered Smart Remote",
+        "description": "Discovered Smart Remote (Serial: {sn}) at {host}. Do you want to pair this remote?",
         "data": {}
       },
       "pair_init": {
@@ -27,15 +27,15 @@
         }
       },
       "reconfigure": {
-        "title": "Reconfigure Sevenhugs Smart Remote",
-        "description": "Update the IP address or hostname of your Sevenhugs Smart Remote.",
+        "title": "Reconfigure Smart Remote",
+        "description": "Update the IP address or hostname of your Smart Remote.",
         "data": {
           "host": "Host / IP Address"
         }
       },
       "reauth_confirm": {
-        "title": "Re-authenticate Sevenhugs Smart Remote",
-        "description": "The security session for Sevenhugs Smart Remote ({host}) is no longer valid. Do you want to re-pair it now?",
+        "title": "Re-authenticate Smart Remote",
+        "description": "The security session for Smart Remote ({host}) is no longer valid. Do you want to re-pair it now?",
         "data": {}
       }
     },
@@ -45,7 +45,7 @@
       "remote_busy": "The remote is busy resetting its security session. Please retry.",
       "invalid_pin": "The PIN code entered is incorrect or has expired. The remote has reset the session: please close this dialog and restart pairing to generate a new PIN.",
       "pairing_failed": "Pairing failed. The security session on the remote has expired: please close this dialog and restart.",
-      "already_configured": "This Sevenhugs Smart Remote is already configured in Home Assistant.",
+      "already_configured": "This Smart Remote is already configured in Home Assistant.",
       "unknown": "An unexpected error occurred. Please consult Home Assistant logs."
     },
     "abort": {
@@ -58,7 +58,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Sevenhugs Smart Remote Options",
+        "title": "Smart Remote Rebirth Options",
         "description": "Configure operational settings for your Smart Remote.",
         "data": {
           "entities": "Entities exposed on the remote",

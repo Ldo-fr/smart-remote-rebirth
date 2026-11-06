@@ -54,13 +54,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import AbortFlow, FlowResultType
 from homeassistant.helpers import device_registry as dr, selector
 
-from custom_components.sevenhugs_smart_remote import async_setup_entry, async_unload_entry
-from custom_components.sevenhugs_smart_remote.config_flow import (
+from custom_components.smart_remote_rebirth import async_setup_entry, async_unload_entry
+from custom_components.smart_remote_rebirth.config_flow import (
     SevenhugsConfigFlow,
     SevenhugsOptionsFlowHandler,
 )
-from custom_components.sevenhugs_smart_remote.client import SevenhugsConnectionError
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.client import SevenhugsConnectionError
+from custom_components.smart_remote_rebirth.const import (
     CONF_AUTO_SYNC_WEBHOOKS,
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
@@ -153,7 +153,7 @@ async def test_zeroconf_ip_update_already_configured() -> None:
     entry = ConfigEntry(
         entry_id="existing_7hugs_entry",
         domain=DOMAIN,
-        title="Sevenhugs Smart Remote (5726)",
+        title="Smart Remote (5726)",
         data={CONF_HOST: "192.168.1.50", CONF_PORT: 80, CONF_SERIAL_NUMBER: "a06fe048b48b"},
         unique_id="a06fe048b48b",
     )
@@ -303,7 +303,7 @@ async def test_pair_init_timeout_connect() -> None:
             wraps=flow.async_step_pair_init,
         ):
             with patch(
-                "custom_components.sevenhugs_smart_remote.client.AsyncSmartRemoteClient.async_pair_setup_m1",
+                "custom_components.smart_remote_rebirth.client.AsyncSmartRemoteClient.async_pair_setup_m1",
                 side_effect=SevenhugsConnectionError("Timeout connecting to remote after 60s"),
             ):
                 result = await flow.async_step_pair_init({})
@@ -329,7 +329,7 @@ async def test_pair_pin_valid_formatted() -> None:
 
         result = await flow.async_step_pair_pin({"pin": "123-45-678"})
         assert result["type"] == FlowResultType.CREATE_ENTRY
-        assert result["title"] == "Sevenhugs Smart Remote (5726)"
+        assert result["title"] == "Smart Remote (5726)"
         assert result["data"][CONF_SERIAL_NUMBER] == "a06fe048b48b260139"
         assert result["data"][CONF_REMOTE_ID] == "5726"
         assert CONF_SESSION_WRITE_KEY in result["data"]
@@ -353,7 +353,7 @@ async def test_pair_pin_valid_unformatted() -> None:
 
         result = await flow.async_step_pair_pin({"pin": "12345678"})
         assert result["type"] == FlowResultType.CREATE_ENTRY
-        assert result["title"] == "Sevenhugs Smart Remote (5726)"
+        assert result["title"] == "Smart Remote (5726)"
         assert result["data"][CONF_SERIAL_NUMBER] == "a06fe048b48b260139"
     finally:
         await server.stop()
@@ -487,7 +487,7 @@ async def test_already_configured_manual_entry() -> None:
         existing_entry = ConfigEntry(
             entry_id="existing_7hugs",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={CONF_HOST: server.host, CONF_PORT: server.port, CONF_SERIAL_NUMBER: "a06fe048b48b260139"},
             unique_id="a06fe048b48b260139",
         )
@@ -517,7 +517,7 @@ async def test_reconfigure_flow_success() -> None:
         entry = ConfigEntry(
             entry_id="entry_to_reconfig",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.99",
                 CONF_PORT: 80,
@@ -552,7 +552,7 @@ async def test_reconfigure_flow_cannot_connect() -> None:
     entry = ConfigEntry(
         entry_id="entry_reconfig_fail",
         domain=DOMAIN,
-        title="Sevenhugs Smart Remote (5726)",
+        title="Smart Remote (5726)",
         data={CONF_HOST: "192.168.1.99", CONF_PORT: 80, CONF_SERIAL_NUMBER: "a06fe048b48b260139"},
     )
     hass.config_entries.async_add(entry)
@@ -578,7 +578,7 @@ async def test_reconfigure_flow_mismatched_device() -> None:
         entry = ConfigEntry(
             entry_id="entry_reconfig_mismatch",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.99",
                 CONF_PORT: 80,
@@ -613,7 +613,7 @@ async def test_reauth_flow_success() -> None:
         entry = ConfigEntry(
             entry_id="entry_reauth_success",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: server.host,
                 CONF_PORT: server.port,
@@ -653,7 +653,7 @@ async def test_options_flow_init_and_save() -> None:
     entry = ConfigEntry(
         entry_id="opt_entry_1",
         domain=DOMAIN,
-        title="Sevenhugs Smart Remote (5726)",
+        title="Smart Remote (5726)",
         data={},
         options={
             CONF_POLLING_INTERVAL: 30,
@@ -688,7 +688,7 @@ async def test_lifecycle_setup_and_unload() -> None:
         entry = ConfigEntry(
             entry_id="lifecycle_entry_1",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: server.host,
                 CONF_PORT: server.port,
@@ -729,7 +729,7 @@ async def test_options_flow_form_rendering_with_selectors() -> None:
     entry = ConfigEntry(
         entry_id="opt_render_entry",
         domain=DOMAIN,
-        title="Sevenhugs Smart Remote (5726)",
+        title="Smart Remote (5726)",
         data={},
         options={
             CONF_ENTITIES: ["light.living_room_ceiling", "switch.kitchen_socket"],
@@ -783,7 +783,7 @@ async def test_options_flow_save_with_entities_and_trigger_resync() -> None:
     entry = ConfigEntry(
         entry_id="opt_save_entry",
         domain=DOMAIN,
-        title="Sevenhugs Smart Remote (5726)",
+        title="Smart Remote (5726)",
         data={},
         options={},
     )
@@ -812,7 +812,7 @@ async def test_options_flow_backward_compatibility_legacy_keys() -> None:
     entry = ConfigEntry(
         entry_id="opt_legacy_entry",
         domain=DOMAIN,
-        title="Sevenhugs Smart Remote (5726)",
+        title="Smart Remote (5726)",
         data={},
         options={
             CONF_POLLING_INTERVAL: 30,
@@ -845,7 +845,7 @@ async def test_webhook_lifecycle_in_setup_and_unload() -> None:
         entry = ConfigEntry(
             entry_id="entry_wh_lifecycle_test",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: server.host,
                 CONF_PORT: server.port,
@@ -860,7 +860,7 @@ async def test_webhook_lifecycle_in_setup_and_unload() -> None:
             },
         )
 
-        expected_webhook_id = f"sevenhugs_{entry.entry_id}"
+        expected_webhook_id = f"smart_remote_{entry.entry_id}"
         assert expected_webhook_id not in getattr(hass.webhook, "_webhooks", {})
 
         setup_ok = await async_setup_entry(hass, entry)
@@ -891,7 +891,7 @@ async def test_background_sync_scheduling_on_setup_and_options() -> None:
         entry = ConfigEntry(
             entry_id="entry_bg_sync_test",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: server.host,
                 CONF_PORT: server.port,
@@ -920,7 +920,7 @@ async def test_background_sync_scheduling_on_setup_and_options() -> None:
 
         hass.async_create_task = spy_async_create_task
 
-        with patch("custom_components.sevenhugs_smart_remote.lua_injector.SevenhugsLuaInjector.async_sync_entities") as mock_sync:
+        with patch("custom_components.smart_remote_rebirth.lua_injector.SevenhugsLuaInjector.async_sync_entities") as mock_sync:
             async def fake_sync(*args, **kwargs):
                 return True
             mock_sync.side_effect = fake_sync
@@ -935,7 +935,7 @@ async def test_background_sync_scheduling_on_setup_and_options() -> None:
                 return True
             mock_reload.side_effect = fake_reload
 
-            from custom_components.sevenhugs_smart_remote import update_listener
+            from custom_components.smart_remote_rebirth import update_listener
             await update_listener(hass, entry)
             mock_reload.assert_called_once_with(entry.entry_id)
 
@@ -947,14 +947,14 @@ async def test_background_sync_scheduling_on_setup_and_options() -> None:
 @pytest.mark.asyncio
 async def test_options_flow_delete_remote_devices() -> None:
     """Scénario 29 : Sélection et suppression définitive d'appareils du carrousel de la télécommande."""
-    from custom_components.sevenhugs_smart_remote.const import CONF_DELETE_DEVICES
+    from custom_components.smart_remote_rebirth.const import CONF_DELETE_DEVICES
     from unittest.mock import AsyncMock
 
     hass = HomeAssistant()
     entry = ConfigEntry(
         entry_id="entry_delete_devices_test",
         domain=DOMAIN,
-        title="Sevenhugs Smart Remote (5726)",
+        title="Smart Remote (5726)",
         data={},
         options={},
     )
@@ -986,7 +986,7 @@ async def test_options_flow_delete_remote_devices() -> None:
     assert delete_sel.config.options[0]["label"] == "Hue Spot 1 (lights)"
 
     # Test de client.async_delete_remote_items
-    from custom_components.sevenhugs_smart_remote.client import AsyncSmartRemoteClient
+    from custom_components.smart_remote_rebirth.client import AsyncSmartRemoteClient
     client = AsyncSmartRemoteClient(host="127.0.0.1", session=unittest.mock.MagicMock(), keys={})
     calls: list[tuple[str, str, Any]] = []
 
@@ -1010,7 +1010,7 @@ async def test_options_flow_delete_remote_devices() -> None:
 
     # Test de compatibilité MappingProxyType (Home Assistant Core 2024+ / 2026+)
     from types import MappingProxyType
-    from custom_components.sevenhugs_smart_remote.lua_injector import SevenhugsLuaInjector
+    from custom_components.smart_remote_rebirth.lua_injector import SevenhugsLuaInjector
 
     entry.data = MappingProxyType({CONF_REMOTE_ID: "5726", CONF_SERIAL_NUMBER: "sn_mp"})  # type: ignore[assignment]
     entry.options = MappingProxyType({  # type: ignore[assignment]

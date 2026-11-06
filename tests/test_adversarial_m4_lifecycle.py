@@ -52,7 +52,7 @@ import tests.conftest
 from tests.conftest import MockSmartRemoteServer
 import aiohttp
 
-from custom_components.sevenhugs_smart_remote import (
+from custom_components.smart_remote_rebirth import (
     DOMAIN,
     PLATFORMS,
     AsyncSmartRemoteClient,
@@ -65,7 +65,7 @@ from custom_components.sevenhugs_smart_remote import (
     async_unload_entry,
     update_listener,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_AUTO_SYNC_WEBHOOKS,
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
@@ -83,7 +83,7 @@ from custom_components.sevenhugs_smart_remote.const import (
     DEFAULT_PORT,
     WEBHOOK_ID_PREFIX,
 )
-from custom_components.sevenhugs_smart_remote.webhook import (
+from custom_components.smart_remote_rebirth.webhook import (
     async_generate_webhook_url,
     async_get_webhook_id,
     async_register_webhook,
@@ -159,7 +159,7 @@ class TestAdversarialWebhookLifecycle(unittest.IsolatedAsyncioTestCase):
         entry = create_mock_entry("adv_wh_01", self.server)
         wh_id = async_register_webhook(self.hass, entry)
 
-        self.assertEqual(wh_id, f"sevenhugs_{entry.entry_id}")
+        self.assertEqual(wh_id, f"smart_remote_{entry.entry_id}")
         self.assertTrue(self.hass.webhook.has_webhook(wh_id))
 
         wh_info = self.hass.webhook.get_webhook(wh_id)
@@ -272,7 +272,7 @@ class TestAdversarialSetupRollback(unittest.IsolatedAsyncioTestCase):
             await async_setup_entry(self.hass, entry)
 
         # Vérification 1 : Webhook désenregistré
-        expected_wh = f"sevenhugs_{entry.entry_id}"
+        expected_wh = f"smart_remote_{entry.entry_id}"
         self.assertFalse(self.hass.webhook.has_webhook(expected_wh))
 
         # Vérification 2 : hass.data nettoyé
@@ -291,7 +291,7 @@ class TestAdversarialSetupRollback(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ConfigEntryNotReady):
             await async_setup_entry(self.hass, entry)
 
-        expected_wh = f"sevenhugs_{entry.entry_id}"
+        expected_wh = f"smart_remote_{entry.entry_id}"
         self.assertFalse(self.hass.webhook.has_webhook(expected_wh))
         self.assertNotIn(entry.entry_id, self.hass.data.get(DOMAIN, {}))
         self.assertIsNone(entry.runtime_data)
@@ -308,7 +308,7 @@ class TestAdversarialSetupRollback(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(RuntimeError):
                 await async_setup_entry(self.hass, entry)
 
-        expected_wh = f"sevenhugs_{entry.entry_id}"
+        expected_wh = f"smart_remote_{entry.entry_id}"
         self.assertFalse(self.hass.webhook.has_webhook(expected_wh))
         self.assertNotIn(entry.entry_id, self.hass.data.get(DOMAIN, {}))
         self.assertIsNone(entry.runtime_data)
@@ -325,7 +325,7 @@ class TestAdversarialSetupRollback(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(RuntimeError):
                 await async_setup_entry(self.hass, entry)
 
-        expected_wh = f"sevenhugs_{entry.entry_id}"
+        expected_wh = f"smart_remote_{entry.entry_id}"
         self.assertFalse(self.hass.webhook.has_webhook(expected_wh))
         self.assertNotIn(entry.entry_id, self.hass.data.get(DOMAIN, {}))
         self.assertIsNone(entry.runtime_data)
@@ -351,7 +351,7 @@ class TestAdversarialSetupRollback(unittest.IsolatedAsyncioTestCase):
                 await async_setup_entry(self.hass, entry)
 
             # Vérification état propre à chaque cycle
-            self.assertFalse(self.hass.webhook.has_webhook(f"sevenhugs_{entry.entry_id}"))
+            self.assertFalse(self.hass.webhook.has_webhook(f"smart_remote_{entry.entry_id}"))
             self.assertNotIn(entry.entry_id, self.hass.data.get(DOMAIN, {}))
             self.assertIsNone(entry.runtime_data)
 
@@ -396,7 +396,7 @@ class TestAdversarialConcurrency(unittest.IsolatedAsyncioTestCase):
 
         # Nettoyage final pour certifier que l'état post-concurrence peut être stabilisé
         await async_unload_entry(self.hass, entry)
-        self.assertFalse(self.hass.webhook.has_webhook(f"sevenhugs_{entry.entry_id}"))
+        self.assertFalse(self.hass.webhook.has_webhook(f"smart_remote_{entry.entry_id}"))
         self.assertNotIn(entry.entry_id, self.hass.data.get(DOMAIN, {}))
         self.assertIsNone(entry.runtime_data)
 
@@ -416,7 +416,7 @@ class TestAdversarialConcurrency(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(r, bool)
             self.assertTrue(r)
 
-        self.assertFalse(self.hass.webhook.has_webhook(f"sevenhugs_{entry.entry_id}"))
+        self.assertFalse(self.hass.webhook.has_webhook(f"smart_remote_{entry.entry_id}"))
         self.assertNotIn(entry.entry_id, self.hass.data.get(DOMAIN, {}))
         self.assertIsNone(entry.runtime_data)
 
@@ -455,7 +455,7 @@ class TestAdversarialConcurrency(unittest.IsolatedAsyncioTestCase):
                 pass
         await asyncio.sleep(0.02)
 
-        self.assertFalse(self.hass.webhook.has_webhook(f"sevenhugs_{entry.entry_id}"))
+        self.assertFalse(self.hass.webhook.has_webhook(f"smart_remote_{entry.entry_id}"))
         self.assertNotIn(entry.entry_id, self.hass.data.get(DOMAIN, {}))
         self.assertIsNone(entry.runtime_data)
 
@@ -468,7 +468,7 @@ class TestAdversarialConcurrency(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(setup_results, [True] * 5)
 
         for e in entries:
-            self.assertTrue(self.hass.webhook.has_webhook(f"sevenhugs_{e.entry_id}"))
+            self.assertTrue(self.hass.webhook.has_webhook(f"smart_remote_{e.entry_id}"))
             self.assertIn(e.entry_id, self.hass.data[DOMAIN])
             self.assertIsNotNone(e.runtime_data)
 
@@ -477,7 +477,7 @@ class TestAdversarialConcurrency(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(unload_results, [True] * 5)
 
         for e in entries:
-            self.assertFalse(self.hass.webhook.has_webhook(f"sevenhugs_{e.entry_id}"))
+            self.assertFalse(self.hass.webhook.has_webhook(f"smart_remote_{e.entry_id}"))
             self.assertNotIn(e.entry_id, self.hass.data.get(DOMAIN, {}))
             self.assertIsNone(e.runtime_data)
 
@@ -516,7 +516,7 @@ class TestAdversarialConcurrency(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.05)
 
         # Vérification finale
-        self.assertFalse(self.hass.webhook.has_webhook(f"sevenhugs_{entry.entry_id}"))
+        self.assertFalse(self.hass.webhook.has_webhook(f"smart_remote_{entry.entry_id}"))
         self.assertNotIn(entry.entry_id, self.hass.data.get(DOMAIN, {}))
         self.assertIsNone(entry.runtime_data)
 

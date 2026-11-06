@@ -66,7 +66,7 @@ import tests.conftest
 from tests.conftest import MockSmartRemoteServer
 import aiohttp
 
-from custom_components.sevenhugs_smart_remote import (
+from custom_components.smart_remote_rebirth import (
     DOMAIN,
     PLATFORMS,
     AsyncSmartRemoteClient,
@@ -76,7 +76,7 @@ from custom_components.sevenhugs_smart_remote import (
     async_unload_entry,
     update_listener,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
     CONF_CONTROLLER_ID,
@@ -91,16 +91,16 @@ from custom_components.sevenhugs_smart_remote.const import (
     DEFAULT_POLLING_INTERVAL,
     SLEEP_CONSECUTIVE_FAILURES_THRESHOLD,
 )
-from custom_components.sevenhugs_smart_remote.sensor import (
+from custom_components.smart_remote_rebirth.sensor import (
     SevenhugsBatterySensor,
     SevenhugsWifiSignalSensor,
     SevenhugsActiveScreenSensor,
 )
-from custom_components.sevenhugs_smart_remote.binary_sensor import (
+from custom_components.smart_remote_rebirth.binary_sensor import (
     SevenhugsChargingBinarySensor,
     SevenhugsConnectivityBinarySensor,
 )
-from custom_components.sevenhugs_smart_remote.button import (
+from custom_components.smart_remote_rebirth.button import (
     SevenhugsForceSyncButton,
     SevenhugsPingButton,
     SevenhugsBackupConfigButton,
@@ -448,9 +448,9 @@ class TestLocalizationValidationAndInterpolation(unittest.TestCase):
 
     def setUp(self) -> None:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.strings_path = os.path.join(base_dir, "custom_components", "sevenhugs_smart_remote", "strings.json")
-        self.en_path = os.path.join(base_dir, "custom_components", "sevenhugs_smart_remote", "translations", "en.json")
-        self.fr_path = os.path.join(base_dir, "custom_components", "sevenhugs_smart_remote", "translations", "fr.json")
+        self.strings_path = os.path.join(base_dir, "custom_components", "smart_remote_rebirth", "strings.json")
+        self.en_path = os.path.join(base_dir, "custom_components", "smart_remote_rebirth", "translations", "en.json")
+        self.fr_path = os.path.join(base_dir, "custom_components", "smart_remote_rebirth", "translations", "fr.json")
 
         with open(self.strings_path, encoding="utf-8") as f:
             self.strings = json.load(f)

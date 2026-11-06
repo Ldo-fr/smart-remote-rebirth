@@ -10,7 +10,7 @@ Valide :
    - async_handle_webhook achemine vers le handler, retourne 404 si inconnu, 405 si méthode rejetée.
 4. homeassistant.helpers.selector : EntitySelector, EntitySelectorConfig, SelectSelector, NumberSelector, intégration avec voluptuous.
 5. aiohttp.web : Response et json_response disponibles et fonctionnels.
-6. custom_components/sevenhugs_smart_remote/const.py : Présence et valeurs des constantes Phase 4.
+6. custom_components/smart_remote_rebirth/const.py : Présence et valeurs des constantes Phase 4.
 """
 
 from __future__ import annotations
@@ -126,7 +126,7 @@ async def verify_mock_webhook() -> None:
 
     webhook.async_register(
         hass,
-        "sevenhugs_smart_remote",
+        "smart_remote_rebirth",
         "Sevenhugs Remote Webhook",
         "sevenhugs_entry_42",
         webhook_handler,
@@ -225,7 +225,7 @@ def verify_aiohttp_web_shim() -> None:
 
 
 def verify_const_phase4() -> None:
-    from custom_components.sevenhugs_smart_remote.const import (
+    from custom_components.smart_remote_rebirth.const import (
         CONF_ENTITIES,
         DEFAULT_EXPOSED_DOMAINS,
         EVENT_SEVENHUGS_BUTTON_PRESSED,

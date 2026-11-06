@@ -46,18 +46,18 @@ try:
     )
     from .webhook import async_generate_webhook_url
 except (ImportError, ValueError):
-    from custom_components.sevenhugs_smart_remote.client import (
+    from custom_components.smart_remote_rebirth.client import (
         AsyncSmartRemoteClient,
         SevenhugsAuthError,
         SevenhugsConnectionError,
     )
-    from custom_components.sevenhugs_smart_remote.const import (
+    from custom_components.smart_remote_rebirth.const import (
         CONF_ENTITIES,
         CONF_REMOTE_ID,
         CONF_SERIAL_NUMBER,
         DOMAIN,
     )
-    from custom_components.sevenhugs_smart_remote.webhook import (
+    from custom_components.smart_remote_rebirth.webhook import (
         async_generate_webhook_url,
     )
 
@@ -141,7 +141,7 @@ class SevenhugsLuaInjector:
                 if hasattr(self.entry, "data") and isinstance(self.entry.data, Mapping)
                 else None
             )
-            or getattr(self.entry, "entry_id", "sevenhugs_smart_remote")
+            or getattr(self.entry, "entry_id", "smart_remote_rebirth")
         )
 
     @property

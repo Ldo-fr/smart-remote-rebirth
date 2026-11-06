@@ -59,11 +59,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import AbortFlow, FlowResultType
 
-from custom_components.sevenhugs_smart_remote.config_flow import (
+from custom_components.smart_remote_rebirth.config_flow import (
     SevenhugsConfigFlow,
     _decode_prop,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_HOST,
     CONF_PORT,
     CONF_REMOTE_ID,
@@ -338,7 +338,7 @@ class TestAdversarialPinFuzzing(unittest.IsolatedAsyncioTestCase):
             # Saisie valide consécutive
             final_res = await flow.async_step_pair_pin({"pin": "123-45-678"})
             self.assertEqual(final_res["type"], FlowResultType.CREATE_ENTRY)
-            self.assertEqual(final_res["title"], "Sevenhugs Smart Remote (5726)")
+            self.assertEqual(final_res["title"], "Smart Remote (5726)")
         finally:
             if flow._pair_client:
                 await flow._pair_client.close()
@@ -652,7 +652,7 @@ class TestAdversarialPort80Probe(unittest.IsolatedAsyncioTestCase):
             flow.hass = self.hass
 
             # Patch temporaire de TIMEOUT_CONNECT_CHECK à 0.15s pour un test unitaire ultra-rapide
-            with patch("custom_components.sevenhugs_smart_remote.config_flow.TIMEOUT_CONNECT_CHECK", 0.15):
+            with patch("custom_components.smart_remote_rebirth.config_flow.TIMEOUT_CONNECT_CHECK", 0.15):
                 start = time.monotonic()
                 res = await flow.async_step_user({CONF_HOST: server.host, CONF_PORT: server.port})
                 duration = time.monotonic() - start

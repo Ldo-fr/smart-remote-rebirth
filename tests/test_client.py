@@ -1,4 +1,4 @@
-"""Tests d'intégration réseau asynchrone pour custom_components/sevenhugs_smart_remote/client.py.
+"""Tests d'intégration réseau asynchrone pour custom_components/smart_remote_rebirth/client.py.
 
 Valide :
 - Latence matérielle de 16 secondes sur /pair-setup (M1) de façon strictement non-bloquante pour la boucle asyncio.
@@ -23,7 +23,7 @@ import tests.conftest  # Configure le path et les shims si besoin
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.client import (
     AsyncSmartRemoteClient,
     SevenhugsAuthError,
     SevenhugsConnectionError,

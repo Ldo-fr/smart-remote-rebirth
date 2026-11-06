@@ -309,7 +309,7 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         connections=connections,
                         manufacturer=MANUFACTURER,
                         model=MODEL_SR1A,
-                        name=f"Sevenhugs Smart Remote ({resolved_id})",
+                        name=f"Smart Remote ({resolved_id})",
                         sw_version=fw_version or "0.76.4",
                         hw_version=HARDWARE_VERSION,
                     )
@@ -324,7 +324,7 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
 
                 return self.async_create_entry(
-                    title=f"Sevenhugs Smart Remote ({resolved_id})",
+                    title=f"Smart Remote ({resolved_id})",
                     data=entry_data,
                     options={
                         CONF_ENTITIES: list(DEFAULT_ENTITIES),

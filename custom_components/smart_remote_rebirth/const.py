@@ -1,8 +1,8 @@
-"""Constantes pour l'intégration Sevenhugs Smart Remote."""
+"""Constantes pour l'intégration Smart Remote Rebirth."""
 
 from __future__ import annotations
 
-DOMAIN = "sevenhugs_smart_remote"
+DOMAIN = "smart_remote_rebirth"
 
 # Clés de configuration de la ConfigEntry
 CONF_HOST = "host"
@@ -55,8 +55,9 @@ DEFAULT_TRIGGER_RESYNC: bool = False
 
 
 # Webhooks et événements (Phase 4 / R1 & R2)
-EVENT_SEVENHUGS_BUTTON_PRESSED = "sevenhugs_button_pressed"
-WEBHOOK_ID_PREFIX = "sevenhugs_"
+EVENT_BUTTON_PRESSED = "smart_remote_button_pressed"
+EVENT_SEVENHUGS_BUTTON_PRESSED = "smart_remote_button_pressed"  # Alias rétro-compatible
+WEBHOOK_ID_PREFIX = "smart_remote_"
 
 # Ports et services réseau
 DEFAULT_PORT = 80
@@ -71,11 +72,11 @@ TIMEOUT_HTTP_REQUEST = 15.0       # Requêtes HTTP chiffrées standard
 
 # Informations matérielles & Device Registry
 MANUFACTURER = "Sevenhugs"
-MODEL_SR1A = "Smart Remote 1A (SR1A)"
-MODEL = "Smart Remote 1A (SR1A)"
+MODEL_SR1A = "SR1A"
+MODEL = "SR1A"
 DEFAULT_MODEL = "SR1A"
 HARDWARE_VERSION = "FCC ID: 2AEVC-SR1A"
-DEFAULT_NAME = "Sevenhugs Smart Remote"
+DEFAULT_NAME = "Smart Remote"
 
 # Codes d'erreurs du Config Flow
 ERROR_CANNOT_CONNECT = "cannot_connect"

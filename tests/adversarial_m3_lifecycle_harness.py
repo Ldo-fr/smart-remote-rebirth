@@ -44,7 +44,7 @@ import tests.conftest
 from tests.conftest import MockSmartRemoteServer
 import aiohttp
 
-from custom_components.sevenhugs_smart_remote import (
+from custom_components.smart_remote_rebirth import (
     DOMAIN,
     PLATFORMS,
     AsyncSmartRemoteClient,
@@ -53,7 +53,7 @@ from custom_components.sevenhugs_smart_remote import (
     async_setup_entry,
     async_unload_entry,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
     CONF_CONTROLLER_ID,
@@ -269,7 +269,7 @@ async def test_axis2_setup_failure_scenarios() -> dict[str, Any]:
         setup_to_returned_true = False
         exception_to_caught = None
         # On patche le timeout aiohttp à 0.5s pour une détection rapide
-        with patch("custom_components.sevenhugs_smart_remote.client.aiohttp.ClientTimeout", return_value=0.5):
+        with patch("custom_components.smart_remote_rebirth.client.aiohttp.ClientTimeout", return_value=0.5):
             try:
                 res = await async_setup_entry(hass_to, entry_to)
                 if res is True:

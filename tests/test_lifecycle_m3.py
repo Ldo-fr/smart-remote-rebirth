@@ -33,7 +33,7 @@ import tests.conftest
 from tests.conftest import MockSmartRemoteServer
 import aiohttp
 
-from custom_components.sevenhugs_smart_remote import (
+from custom_components.smart_remote_rebirth import (
     DOMAIN,
     PLATFORMS,
     AsyncSmartRemoteClient,
@@ -42,7 +42,7 @@ from custom_components.sevenhugs_smart_remote import (
     async_setup_entry,
     async_unload_entry,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
     CONF_CONTROLLER_ID,
@@ -70,7 +70,7 @@ class TestMilestone3LifecycleAndLocalization(unittest.IsolatedAsyncioTestCase):
         self.valid_entry = ConfigEntry(
             entry_id="m3_test_entry_001",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: self.server.host,
                 CONF_PORT: self.server.port,
@@ -251,9 +251,9 @@ class TestMilestone3LifecycleAndLocalization(unittest.IsolatedAsyncioTestCase):
     def test_localization_schema_and_parity(self) -> None:
         """Valide la stricte parité 1:1, les 8 clés d'entités et les placeholders des fichiers de traduction."""
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        strings_path = os.path.join(base_dir, "custom_components", "sevenhugs_smart_remote", "strings.json")
-        en_path = os.path.join(base_dir, "custom_components", "sevenhugs_smart_remote", "translations", "en.json")
-        fr_path = os.path.join(base_dir, "custom_components", "sevenhugs_smart_remote", "translations", "fr.json")
+        strings_path = os.path.join(base_dir, "custom_components", "smart_remote_rebirth", "strings.json")
+        en_path = os.path.join(base_dir, "custom_components", "smart_remote_rebirth", "translations", "en.json")
+        fr_path = os.path.join(base_dir, "custom_components", "smart_remote_rebirth", "translations", "fr.json")
 
         with open(strings_path, encoding="utf-8") as f:
             strings = json.load(f)

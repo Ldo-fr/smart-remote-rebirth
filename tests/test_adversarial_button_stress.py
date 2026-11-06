@@ -4,7 +4,7 @@ Auteur: Challenger 2 (Milestone 2 - EMPIRICAL CHALLENGER)
 Rôles: critic, specialist
 
 Ce banc d'essais valide empiriquement la robustesse, la gestion de la concurrence
-et la traduction d'exceptions pour custom_components/sevenhugs_smart_remote/button.py :
+et la traduction d'exceptions pour custom_components/smart_remote_rebirth/button.py :
 
 1. SevenhugsForceSyncButton:
    - Appel nominal de coordinator.async_request_refresh().
@@ -56,7 +56,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.sevenhugs_smart_remote.button import (
+from custom_components.smart_remote_rebirth.button import (
     PARALLEL_UPDATES,
     SevenhugsBackupConfigButton,
     SevenhugsForceSyncButton,
@@ -64,16 +64,16 @@ from custom_components.sevenhugs_smart_remote.button import (
     _resolve_coordinator,
     async_setup_entry,
 )
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.client import (
     SevenhugsAuthError,
     SevenhugsConnectionError,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_REMOTE_ID,
     CONF_SERIAL_NUMBER,
     DOMAIN,
 )
-from custom_components.sevenhugs_smart_remote.coordinator import (
+from custom_components.smart_remote_rebirth.coordinator import (
     SevenhugsDataUpdateCoordinator,
 )
 

@@ -4,7 +4,7 @@ Auteur: Challenger M4.1 (EMPIRICAL CHALLENGER)
 Rôle: critic, specialist
 
 Ce script applique systématiquement des mutations ciblées au fichier
-`custom_components/sevenhugs_smart_remote/coordinator.py`, exécute la suite de tests
+`custom_components/smart_remote_rebirth/coordinator.py`, exécute la suite de tests
 `tests/test_coordinator.py`, vérifie empiriquement que chaque mutant est bien détecté et tué,
 puis restaure immédiatement le fichier original avec vérification cryptographique SHA256.
 """
@@ -21,7 +21,7 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-TARGET_FILE = PROJECT_ROOT / "custom_components" / "sevenhugs_smart_remote" / "coordinator.py"
+TARGET_FILE = PROJECT_ROOT / "custom_components" / "smart_remote_rebirth" / "coordinator.py"
 
 
 @dataclass

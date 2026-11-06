@@ -79,7 +79,7 @@ class AdversarialMilestone1Harness:
     # AXIS 1: len(PLATFORMS) == 3 across all import paths
     # =========================================================================
     def check_platforms_import_direct(self) -> None:
-        from custom_components.sevenhugs_smart_remote.const import PLATFORMS
+        from custom_components.smart_remote_rebirth.const import PLATFORMS
         assert len(PLATFORMS) == 3, f"Expected len(PLATFORMS) == 3, got {len(PLATFORMS)}"
         platforms_str = [str(p).replace("Platform.", "").lower() for p in PLATFORMS]
         assert "sensor" in platforms_str
@@ -87,7 +87,7 @@ class AdversarialMilestone1Harness:
         assert "button" in platforms_str
 
     def check_platforms_import_package(self) -> None:
-        from custom_components.sevenhugs_smart_remote import PLATFORMS
+        from custom_components.smart_remote_rebirth import PLATFORMS
         assert len(PLATFORMS) == 3, f"Expected len(PLATFORMS) == 3, got {len(PLATFORMS)}"
         platforms_str = [str(p).replace("Platform.", "").lower() for p in PLATFORMS]
         assert set(platforms_str) == {"sensor", "binary_sensor", "button"}
@@ -99,16 +99,16 @@ class AdversarialMilestone1Harness:
         try:
             sys.modules["homeassistant.const"] = None  # Force ImportError on import
             # Delete const from sys.modules to force reload
-            old_const = sys.modules.pop("custom_components.sevenhugs_smart_remote.const", None)
-            const_mod = importlib.import_module("custom_components.sevenhugs_smart_remote.const")
+            old_const = sys.modules.pop("custom_components.smart_remote_rebirth.const", None)
+            const_mod = importlib.import_module("custom_components.smart_remote_rebirth.const")
             assert len(const_mod.PLATFORMS) == 3, f"Fallback len(PLATFORMS) expected 3, got {len(const_mod.PLATFORMS)}"
             assert const_mod.PLATFORMS == ["sensor", "binary_sensor", "button"]
         finally:
             if old_ha_const is not None:
                 sys.modules["homeassistant.const"] = old_ha_const
             # Restore const module
-            sys.modules.pop("custom_components.sevenhugs_smart_remote.const", None)
-            importlib.import_module("custom_components.sevenhugs_smart_remote.const")
+            sys.modules.pop("custom_components.smart_remote_rebirth.const", None)
+            importlib.import_module("custom_components.smart_remote_rebirth.const")
 
     # =========================================================================
     # AXIS 2: ServiceCall dual dict & attribute access
@@ -393,7 +393,7 @@ class AdversarialMilestone1Harness:
     # AXIS 7: Phase 4 Constants & Invariants
     # =========================================================================
     def check_phase4_constants(self) -> None:
-        from custom_components.sevenhugs_smart_remote.const import (
+        from custom_components.smart_remote_rebirth.const import (
             CONF_ENTITIES,
             CONF_TRIGGER_RESYNC,
             DEFAULT_EXPOSED_DOMAINS,

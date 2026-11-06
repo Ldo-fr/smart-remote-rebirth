@@ -29,6 +29,7 @@ from .const import (
     CONF_REMOTE_ID,
     CONF_SERIAL_NUMBER,
     DOMAIN,
+    EVENT_BUTTON_PRESSED,
     EVENT_SEVENHUGS_BUTTON_PRESSED,
     WEBHOOK_ID_PREFIX,
 )
@@ -341,10 +342,10 @@ async def async_handle_webhook(
 
     if hasattr(hass, "bus") and hasattr(hass.bus, "async_fire"):
         try:
-            hass.bus.async_fire(EVENT_SEVENHUGS_BUTTON_PRESSED, event_data)
+            hass.bus.async_fire(EVENT_BUTTON_PRESSED, event_data)
             _LOGGER.debug(
                 "Événement %s émis pour le webhook %s: %s",
-                EVENT_SEVENHUGS_BUTTON_PRESSED,
+                EVENT_BUTTON_PRESSED,
                 webhook_id,
                 event_data,
             )

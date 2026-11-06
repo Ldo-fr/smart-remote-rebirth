@@ -225,7 +225,7 @@ class FlowHandler:
 
     def __init__(self) -> None:
         self.hass: Any = None
-        self.handler: str = getattr(self, "DOMAIN", "sevenhugs_smart_remote")
+        self.handler: str = getattr(self, "DOMAIN", "smart_remote_rebirth")
         self.context: dict[str, Any] = {}
         self.flow_id: str = "mock_flow_id_123"
 
@@ -552,7 +552,7 @@ class MockConfigEntriesManager:
             if not hasattr(entry, "_reload_lock") or entry._reload_lock is None:
                 entry._reload_lock = asyncio.Lock()
             async with entry._reload_lock:
-                from custom_components.sevenhugs_smart_remote import async_setup_entry, async_unload_entry
+                from custom_components.smart_remote_rebirth import async_setup_entry, async_unload_entry
                 await async_unload_entry(self.hass, entry)
                 try:
                     res = await async_setup_entry(self.hass, entry)

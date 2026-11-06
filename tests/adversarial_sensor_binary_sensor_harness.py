@@ -64,19 +64,19 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.sevenhugs_smart_remote.binary_sensor import (
+from custom_components.smart_remote_rebirth.binary_sensor import (
     PARALLEL_UPDATES as BINARY_SENSOR_PARALLEL_UPDATES,
     SevenhugsChargingBinarySensor,
     SevenhugsConnectivityBinarySensor,
     _get_coordinator as _get_binary_coordinator,
     async_setup_entry as async_setup_binary_entry,
 )
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.client import (
     AsyncSmartRemoteClient,
     SevenhugsAuthError,
     SevenhugsConnectionError,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_REMOTE_ID,
     CONF_SERIAL_NUMBER,
     DEFAULT_NAME,
@@ -85,12 +85,12 @@ from custom_components.sevenhugs_smart_remote.const import (
     MANUFACTURER,
     MODEL_SR1A,
 )
-from custom_components.sevenhugs_smart_remote.coordinator import (
+from custom_components.smart_remote_rebirth.coordinator import (
     DEFAULT_COORDINATOR_UPDATE_INTERVAL,
     SLEEP_CONSECUTIVE_FAILURES_THRESHOLD,
     SevenhugsDataUpdateCoordinator,
 )
-from custom_components.sevenhugs_smart_remote.sensor import (
+from custom_components.smart_remote_rebirth.sensor import (
     PARALLEL_UPDATES as SENSOR_PARALLEL_UPDATES,
     SevenhugsActiveScreenSensor,
     SevenhugsBatterySensor,

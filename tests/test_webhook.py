@@ -2,7 +2,7 @@
 
 Couvre l'intégralité des spécifications et exigences du webhook :
 1. Enregistrement et désenregistrement du webhook local :
-   - Inscription locale exclusive (local_only=True) avec webhook_id = f"sevenhugs_{entry.entry_id}".
+   - Inscription locale exclusive (local_only=True) avec webhook_id = f"smart_remote_{entry.entry_id}".
    - Métadonnées complètes (domain, name, webhook_id, allowed_methods=['POST', 'PUT']).
    - Désenregistrement propre et idempotent sans exception.
 2. Validation du payload JSON et codes de réponse HTTP :
@@ -55,8 +55,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 import aiohttp.web as web
 
-from custom_components.sevenhugs_smart_remote import SevenhugsData
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth import SevenhugsData
+from custom_components.smart_remote_rebirth.const import (
     CONF_HOST,
     CONF_PORT,
     CONF_REMOTE_ID,
@@ -65,7 +65,7 @@ from custom_components.sevenhugs_smart_remote.const import (
     EVENT_SEVENHUGS_BUTTON_PRESSED,
     WEBHOOK_ID_PREFIX,
 )
-from custom_components.sevenhugs_smart_remote.webhook import (
+from custom_components.smart_remote_rebirth.webhook import (
     async_generate_webhook_url,
     async_get_webhook_id,
     async_handle_webhook,
@@ -111,7 +111,7 @@ class TestSevenhugsWebhook(unittest.IsolatedAsyncioTestCase):
         self.entry = ConfigEntry(
             entry_id=self.entry_id,
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.50",
                 CONF_PORT: 80,
@@ -190,9 +190,9 @@ class TestSevenhugsWebhook(unittest.IsolatedAsyncioTestCase):
                 data={},
             )
             wid = async_register_webhook(self.hass, custom_entry)
-            self.assertEqual(wid, f"sevenhugs_{test_id}")
-            self.assertEqual(async_get_webhook_id(custom_entry), f"sevenhugs_{test_id}")
-            self.assertEqual(async_get_webhook_id(test_id), f"sevenhugs_{test_id}")
+            self.assertEqual(wid, f"smart_remote_{test_id}")
+            self.assertEqual(async_get_webhook_id(custom_entry), f"smart_remote_{test_id}")
+            self.assertEqual(async_get_webhook_id(test_id), f"smart_remote_{test_id}")
             async_unregister_webhook(self.hass, custom_entry)
 
     # =========================================================================

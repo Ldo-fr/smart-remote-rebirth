@@ -42,7 +42,7 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 | **Appairage local graphique (Config Flow)** | ✅ Opérationnel | Découverte automatique mDNS (`_smart_remote._tcp.local.`), saisie du code PIN 8 chiffres dans l'UI Home Assistant, calcul SRP-6a non-bloquant. |
 | **Télémétrie en temps réel (Capteurs)** | ✅ Opérationnel | Capteurs de niveau de batterie (`%`), signal Wi-Fi / RSSI (`dBm`), état sur le dock de charge (`binary_sensor`). |
 | **Contrôle bidirectionnel (Webhooks locaux)** | ✅ Opérationnel | Réception sécurisée (`local_only=True`) des appuis touches sur l'écran tactile et déclenchement instantané des services HA (`light`, `switch`, `scene`). |
-| **Événements d'automatisation** | ✅ Opérationnel | Émission systématique de l'événement `sevenhugs_button_pressed` sur le bus d'événements Home Assistant. |
+| **Événements d'automatisation** | ✅ Opérationnel | Émission systématique de l'événement `smart_remote_button_pressed` sur le bus d'événements Home Assistant. |
 | **Gestion de la veille (Deep Sleep)** | ✅ Opérationnel | Tolérance aux micro-coupures Wi-Fi lors de l'endormissement de la télécommande et reconnexion transparente lors de la reprise en main. |
 | **Sélection d'entités (Options Flow)** | ✅ Opérationnel | Interface graphique pour sélectionner les appareils et scènes exposés à la télécommande. |
 | **Injecteur d'assistants Lua** | ✅ Opérationnel | Automatisation de la configuration des boutons via le serveur embarqué de la télécommande. |
@@ -61,7 +61,7 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 4. Renseignez :
    - **Dépôt** : `https://github.com/Ldo-fr/smart-remote-rebirth`
    - **Type** : `Intégration`
-5. Cliquez sur **Ajouter**, puis recherchez **Sevenhugs Smart Remote**.
+5. Cliquez sur **Ajouter**, puis recherchez **Smart Remote Rebirth**.
 6. Cliquez sur **Télécharger**, puis **redémarrez Home Assistant**.
 
 ---
@@ -72,9 +72,9 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
    ```bash
    git clone https://github.com/Ldo-fr/smart-remote-rebirth.git
    ```
-2. Copiez le dossier `custom_components/sevenhugs_smart_remote` dans le répertoire `config/custom_components/` de votre Home Assistant :
+2. Copiez le dossier `custom_components/smart_remote_rebirth` dans le répertoire `config/custom_components/` de votre Home Assistant :
    ```bash
-   cp -r smart-remote-rebirth/custom_components/sevenhugs_smart_remote /chemin/vers/votre/config/custom_components/
+   cp -r smart-remote-rebirth/custom_components/smart_remote_rebirth /chemin/vers/votre/config/custom_components/
    ```
 3. **Redémarrez Home Assistant**.
 
@@ -85,7 +85,7 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 Une fois l'intégration installée et Home Assistant redémarré :
 
 1. Allez dans **Paramètres > Appareils et Services > Ajouter une intégration**.
-2. Recherchez **Sevenhugs Smart Remote**.
+2. Recherchez **Smart Remote Rebirth**.
 3. **Appairage assisté** :
    - Si votre télécommande est allumée et connectée au même Wi-Fi, elle est **détectée automatiquement** via mDNS. Sinon, entrez simplement son adresse IP locale.
    - Cliquez sur **Suivant**. L'intégration initialise le calcul d'empreinte matérielle SRP-6a (~16 secondes).

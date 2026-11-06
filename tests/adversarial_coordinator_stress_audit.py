@@ -31,18 +31,18 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.client import (
     SevenhugsAuthError,
     SevenhugsConnectionError,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_HOST,
     CONF_PORT,
     CONF_REMOTE_ID,
     CONF_SERIAL_NUMBER,
     DOMAIN,
 )
-from custom_components.sevenhugs_smart_remote.coordinator import (
+from custom_components.smart_remote_rebirth.coordinator import (
     SLEEP_CONSECUTIVE_FAILURES_THRESHOLD,
     SevenhugsDataUpdateCoordinator,
 )

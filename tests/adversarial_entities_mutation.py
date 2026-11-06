@@ -33,12 +33,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 import tests.test_entities as te
-import custom_components.sevenhugs_smart_remote as pkg_mod
-import custom_components.sevenhugs_smart_remote.const as const_mod
-import custom_components.sevenhugs_smart_remote.binary_sensor as bs_mod
-import custom_components.sevenhugs_smart_remote.button as btn_mod
-import custom_components.sevenhugs_smart_remote.entity as entity_mod
-import custom_components.sevenhugs_smart_remote.sensor as sensor_mod
+import custom_components.smart_remote_rebirth as pkg_mod
+import custom_components.smart_remote_rebirth.const as const_mod
+import custom_components.smart_remote_rebirth.binary_sensor as bs_mod
+import custom_components.smart_remote_rebirth.button as btn_mod
+import custom_components.smart_remote_rebirth.entity as entity_mod
+import custom_components.smart_remote_rebirth.sensor as sensor_mod
 
 
 class MutationTestResult:

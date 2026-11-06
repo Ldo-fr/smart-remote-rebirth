@@ -23,7 +23,7 @@ if os.path.isdir(PYLIB_DIR) and PYLIB_DIR not in sys.path:
     sys.path.insert(0, PYLIB_DIR)
 
 from tests.ha_mock import HomeAssistant, ConfigEntry
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     DOMAIN,
     CONF_HOST,
     CONF_PORT,
@@ -37,8 +37,8 @@ from custom_components.sevenhugs_smart_remote.const import (
     CONF_SESSION_WRITE_KEY,
     CONF_SESSION_READ_KEY,
 )
-from custom_components.sevenhugs_smart_remote import async_setup_entry, async_unload_entry
-from custom_components.sevenhugs_smart_remote.webhook import async_get_webhook_id
+from custom_components.smart_remote_rebirth import async_setup_entry, async_unload_entry
+from custom_components.smart_remote_rebirth.webhook import async_get_webhook_id
 from tests.conftest import MockSmartRemoteServer
 
 

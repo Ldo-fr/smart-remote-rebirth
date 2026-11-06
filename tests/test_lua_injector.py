@@ -2,7 +2,7 @@
 
 Couvre l'intégralité des spécifications et exigences du Lua Injector :
 1. Initialisation de SevenhugsLuaInjector et extraction des métadonnées (remote_id, hass, entry, client).
-2. Génération de l'URL de webhook local conforme à sevenhugs_{entry_id}.
+2. Génération de l'URL de webhook local conforme à smart_remote_{entry_id}.
 3. Construction des déclencheurs de boutons par domaine :
    - light -> action toggle
    - switch -> action toggle
@@ -57,12 +57,12 @@ except ImportError:
         ClientError = Exception
     aiohttp = _AiohttpModule()  # type: ignore[assignment]
 
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.client import (
     AsyncSmartRemoteClient,
     SevenhugsAuthError,
     SevenhugsConnectionError,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_ENTITIES,
     CONF_HOST,
     CONF_PORT,
@@ -72,11 +72,11 @@ from custom_components.sevenhugs_smart_remote.const import (
     EVENT_SEVENHUGS_BUTTON_PRESSED,
     WEBHOOK_ID_PREFIX,
 )
-from custom_components.sevenhugs_smart_remote.lua_injector import (
+from custom_components.smart_remote_rebirth.lua_injector import (
     DEFAULT_DOMAIN_ACTIONS,
     SevenhugsLuaInjector,
 )
-from custom_components.sevenhugs_smart_remote.webhook import (
+from custom_components.smart_remote_rebirth.webhook import (
     async_generate_webhook_url,
     async_handle_webhook,
     async_register_webhook,
@@ -115,7 +115,7 @@ class TestSevenhugsLuaInjector(unittest.IsolatedAsyncioTestCase):
         self.entry = ConfigEntry(
             entry_id=self.entry_id,
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.50",
                 CONF_PORT: 80,
@@ -223,7 +223,7 @@ class TestSevenhugsLuaInjector(unittest.IsolatedAsyncioTestCase):
     # =========================================================================
 
     async def test_get_webhook_url_structure(self) -> None:
-        """Vérifie que l'URL générée cible bien l'endpoint local sevenhugs_{entry_id}."""
+        """Vérifie que l'URL générée cible bien l'endpoint local smart_remote_{entry_id}."""
         url = self.injector.get_webhook_url()
         expected_url = f"http://127.0.0.1:8123/api/webhook/{WEBHOOK_ID_PREFIX}{self.entry_id}"
         self.assertEqual(url, expected_url)
@@ -253,7 +253,7 @@ class TestSevenhugsLuaInjector(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(trig["name"], "Plafonnier Salon")
         self.assertEqual(trig["method"], "POST")
-        self.assertTrue(trig["url"].endswith(f"sevenhugs_{self.entry_id}"))
+        self.assertTrue(trig["url"].endswith(f"smart_remote_{self.entry_id}"))
 
         body = json.loads(trig["body"])
         self.assertEqual(body["event"], "button_press")
@@ -649,7 +649,7 @@ class TestSevenhugsLuaInjector(unittest.IsolatedAsyncioTestCase):
         """Vérifie le cycle complet : Trigger généré -> POST vers webhook -> Exécution du service HA."""
         # 1. Enregistrement du webhook local dans Home Assistant
         registered_id = async_register_webhook(self.hass, self.entry)
-        self.assertEqual(registered_id, f"sevenhugs_{self.entry_id}")
+        self.assertEqual(registered_id, f"smart_remote_{self.entry_id}")
 
         # 2. Génération du déclencheur via l'injecteur
         triggers = await self.injector.async_build_triggers_from_entities(["light.living_room_ceiling"])

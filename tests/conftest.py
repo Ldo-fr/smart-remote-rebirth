@@ -367,8 +367,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
-from custom_components.sevenhugs_smart_remote.client import AsyncSmartRemoteClient
-from custom_components.sevenhugs_smart_remote.crypto import (
+from custom_components.smart_remote_rebirth.client import AsyncSmartRemoteClient
+from custom_components.smart_remote_rebirth.crypto import (
     API_NONCE,
     NONCE_PS_MSG05,
     NONCE_PS_MSG06,

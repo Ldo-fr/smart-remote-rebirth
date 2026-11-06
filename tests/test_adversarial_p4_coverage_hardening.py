@@ -60,7 +60,7 @@ from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady, HomeAssistantError
 
 from tests.conftest import MockSmartRemoteServer
-from custom_components.sevenhugs_smart_remote import (
+from custom_components.smart_remote_rebirth import (
     DOMAIN,
     PLATFORMS,
     AsyncSmartRemoteClient,
@@ -73,11 +73,11 @@ from custom_components.sevenhugs_smart_remote import (
     async_unload_entry,
     update_listener,
 )
-from custom_components.sevenhugs_smart_remote.config_flow import (
+from custom_components.smart_remote_rebirth.config_flow import (
     SevenhugsConfigFlow,
     SevenhugsOptionsFlowHandler,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_AUTO_SYNC_WEBHOOKS,
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
@@ -104,11 +104,11 @@ from custom_components.sevenhugs_smart_remote.const import (
     MIN_POLLING_INTERVAL,
     WEBHOOK_ID_PREFIX,
 )
-from custom_components.sevenhugs_smart_remote.lua_injector import (
+from custom_components.smart_remote_rebirth.lua_injector import (
     DEFAULT_DOMAIN_ACTIONS,
     _AwaitableList,
 )
-from custom_components.sevenhugs_smart_remote.webhook import (
+from custom_components.smart_remote_rebirth.webhook import (
     async_generate_webhook_url,
     async_get_webhook_id,
     async_handle_webhook,
@@ -143,7 +143,7 @@ class MockWebhookRequest:
 
 
 class TestAdversarialWebhookCoverage(unittest.IsolatedAsyncioTestCase):
-    """Adversarial stress tests for custom_components.sevenhugs_smart_remote.webhook."""
+    """Adversarial stress tests for custom_components.smart_remote_rebirth.webhook."""
 
     async def asyncSetUp(self) -> None:
         self.hass = HomeAssistant()
@@ -235,11 +235,11 @@ class TestAdversarialWebhookCoverage(unittest.IsolatedAsyncioTestCase):
 
     async def test_async_get_webhook_id_variants(self) -> None:
         """Verify async_get_webhook_id normalizes strings and ConfigEntry objects."""
-        self.assertEqual(async_get_webhook_id(self.entry), f"sevenhugs_{self.entry_id}")
-        self.assertEqual(async_get_webhook_id(self.entry_id), f"sevenhugs_{self.entry_id}")
+        self.assertEqual(async_get_webhook_id(self.entry), f"smart_remote_{self.entry_id}")
+        self.assertEqual(async_get_webhook_id(self.entry_id), f"smart_remote_{self.entry_id}")
         self.assertEqual(
-            async_get_webhook_id(f"sevenhugs_{self.entry_id}"),
-            f"sevenhugs_{self.entry_id}",
+            async_get_webhook_id(f"smart_remote_{self.entry_id}"),
+            f"smart_remote_{self.entry_id}",
         )
 
     async def test_async_register_and_unregister_idempotence(self) -> None:
@@ -363,7 +363,7 @@ class TestAdversarialWebhookCoverage(unittest.IsolatedAsyncioTestCase):
 
 
 class TestAdversarialLuaInjectorCoverage(unittest.IsolatedAsyncioTestCase):
-    """Adversarial stress tests for custom_components.sevenhugs_smart_remote.lua_injector."""
+    """Adversarial stress tests for custom_components.smart_remote_rebirth.lua_injector."""
 
     async def asyncSetUp(self) -> None:
         self.hass = HomeAssistant()
@@ -675,7 +675,7 @@ class TestAdversarialLifecycleAndDataContainer(unittest.IsolatedAsyncioTestCase)
         self.entry = ConfigEntry(
             entry_id="adv_lifecycle_entry_1",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: self.server.host,
                 CONF_PORT: self.server.port,
@@ -749,7 +749,7 @@ class TestAdversarialLifecycleAndDataContainer(unittest.IsolatedAsyncioTestCase)
                 await async_setup_entry(self.hass, self.entry)
 
             # Webhook must be unregistered
-            webhook_id = f"sevenhugs_{self.entry.entry_id}"
+            webhook_id = f"smart_remote_{self.entry.entry_id}"
             self.assertFalse(self.hass.webhook.has_webhook(webhook_id))
 
             # Entry must not leak in hass.data

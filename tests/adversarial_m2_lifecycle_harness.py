@@ -63,23 +63,23 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import device_registry as dr
 import voluptuous as vol
 
-from custom_components.sevenhugs_smart_remote import (
+from custom_components.smart_remote_rebirth import (
     DOMAIN,
     async_setup_entry,
     async_unload_entry,
     update_listener,
 )
-from custom_components.sevenhugs_smart_remote.__init__ import SevenhugsData
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.__init__ import SevenhugsData
+from custom_components.smart_remote_rebirth.client import (
     AsyncSmartRemoteClient,
     SevenhugsAuthError,
     SevenhugsConnectionError,
 )
-from custom_components.sevenhugs_smart_remote.config_flow import (
+from custom_components.smart_remote_rebirth.config_flow import (
     SevenhugsConfigFlow,
     SevenhugsOptionsFlowHandler,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_AUTO_SYNC_WEBHOOKS,
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
@@ -382,7 +382,7 @@ async def test_axis3_reauth_factory_reset_lifecycle() -> dict[str, Any]:
         entry = ConfigEntry(
             entry_id=initial_entry_id,
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: server.host,
                 CONF_PORT: server.port,
@@ -406,7 +406,7 @@ async def test_axis3_reauth_factory_reset_lifecycle() -> dict[str, Any]:
             identifiers={(DOMAIN, serial)},
             manufacturer=MANUFACTURER,
             model=MODEL_SR1A,
-            name="Sevenhugs Smart Remote (5726)",
+            name="Smart Remote (5726)",
         )
         assert initial_entry_id in dev.config_entries
 
@@ -601,7 +601,7 @@ async def test_axis5_reconfigure_flow_mismatch_adversarial() -> dict[str, Any]:
         entry = ConfigEntry(
             entry_id="entry_reconfig_test",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: server_a.host,
                 CONF_PORT: server_a.port,

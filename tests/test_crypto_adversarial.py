@@ -23,7 +23,7 @@ import tests.conftest
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
-from custom_components.sevenhugs_smart_remote.crypto import (
+from custom_components.smart_remote_rebirth.crypto import (
     API_NONCE,
     SRP_G,
     SRP_N,

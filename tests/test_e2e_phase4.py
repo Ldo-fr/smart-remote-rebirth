@@ -32,7 +32,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
 
 from tests.conftest import MockSmartRemoteServer
-from custom_components.sevenhugs_smart_remote import (
+from custom_components.smart_remote_rebirth import (
     DOMAIN,
     PLATFORMS,
     AsyncSmartRemoteClient,
@@ -45,11 +45,11 @@ from custom_components.sevenhugs_smart_remote import (
     async_unload_entry,
     update_listener,
 )
-from custom_components.sevenhugs_smart_remote.config_flow import (
+from custom_components.smart_remote_rebirth.config_flow import (
     SevenhugsConfigFlow,
     SevenhugsOptionsFlowHandler,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_AUTO_SYNC_WEBHOOKS,
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
@@ -72,7 +72,7 @@ from custom_components.sevenhugs_smart_remote.const import (
     EVENT_SEVENHUGS_BUTTON_PRESSED,
     WEBHOOK_ID_PREFIX,
 )
-from custom_components.sevenhugs_smart_remote.webhook import (
+from custom_components.smart_remote_rebirth.webhook import (
     async_generate_webhook_url,
     async_get_webhook_id,
     async_handle_webhook,
@@ -155,7 +155,7 @@ class TestPhase4Tier1FeatureCoverage(unittest.IsolatedAsyncioTestCase):
         setup_ok = await async_setup_entry(self.hass, entry)
         self.assertTrue(setup_ok)
 
-        expected_webhook_id = f"sevenhugs_{entry.entry_id}"
+        expected_webhook_id = f"smart_remote_{entry.entry_id}"
         self.assertTrue(self.hass.webhook.has_webhook(expected_webhook_id))
 
         wh_info = self.hass.webhook.get_webhook(expected_webhook_id)
@@ -178,7 +178,7 @@ class TestPhase4Tier1FeatureCoverage(unittest.IsolatedAsyncioTestCase):
         entry = create_mock_entry("t1_light_01", self.server)
         self.hass.config_entries.async_add(entry)
         await async_setup_entry(self.hass, entry)
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
 
         payload = {
             "domain": "light",
@@ -207,7 +207,7 @@ class TestPhase4Tier1FeatureCoverage(unittest.IsolatedAsyncioTestCase):
         entry = create_mock_entry("t1_switch_01", self.server)
         self.hass.config_entries.async_add(entry)
         await async_setup_entry(self.hass, entry)
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
 
         target_entities = ["switch.kitchen_plug", "switch.coffee_maker"]
         payload = {
@@ -232,7 +232,7 @@ class TestPhase4Tier1FeatureCoverage(unittest.IsolatedAsyncioTestCase):
         entry = create_mock_entry("t1_scene_01", self.server)
         self.hass.config_entries.async_add(entry)
         await async_setup_entry(self.hass, entry)
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
 
         payload = {
             "domain": "scene",
@@ -258,7 +258,7 @@ class TestPhase4Tier1FeatureCoverage(unittest.IsolatedAsyncioTestCase):
         entry = create_mock_entry("t1_media_01", self.server)
         self.hass.config_entries.async_add(entry)
         await async_setup_entry(self.hass, entry)
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
 
         payload = {
             "domain": "media_player",
@@ -282,7 +282,7 @@ class TestPhase4Tier1FeatureCoverage(unittest.IsolatedAsyncioTestCase):
         entry = create_mock_entry("t1_prefix_01", self.server)
         self.hass.config_entries.async_add(entry)
         await async_setup_entry(self.hass, entry)
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
 
         # Action passée sous la forme "light.turn_off" au lieu de "turn_off"
         payload = {
@@ -307,7 +307,7 @@ class TestPhase4Tier1FeatureCoverage(unittest.IsolatedAsyncioTestCase):
         entry = create_mock_entry("t1_bus_01", self.server)
         self.hass.config_entries.async_add(entry)
         await async_setup_entry(self.hass, entry)
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
 
         received_events = []
         self.hass.bus.async_listen(
@@ -424,7 +424,7 @@ class TestPhase4Tier2BoundaryAndCornerCases(unittest.IsolatedAsyncioTestCase):
         self.entry = create_mock_entry("t2_entry", self.server)
         self.hass.config_entries.async_add(self.entry)
         await async_setup_entry(self.hass, self.entry)
-        self.wh_id = f"sevenhugs_{self.entry.entry_id}"
+        self.wh_id = f"smart_remote_{self.entry.entry_id}"
 
     async def asyncTearDown(self) -> None:
         if self.hass.webhook.has_webhook(self.wh_id):
@@ -642,7 +642,7 @@ class TestPhase4Tier3CrossFeatureInteractions(unittest.IsolatedAsyncioTestCase):
         self.assertIn("done", self.server.lua_steps_called)
 
         # La télécommande physique envoie un appui bouton vers le webhook enregistré
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
         press_payload = {
             "domain": "light",
             "action": "turn_on",
@@ -682,7 +682,7 @@ class TestPhase4Tier3CrossFeatureInteractions(unittest.IsolatedAsyncioTestCase):
         entry = create_mock_entry("t3_reload_01", self.server)
         self.hass.config_entries.async_add(entry)
         await async_setup_entry(self.hass, entry)
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
 
         # Lance 5 appels de webhooks simultanés tout en déclenchant un reload
         async def call_webhook():
@@ -722,7 +722,7 @@ class TestPhase4Tier3CrossFeatureInteractions(unittest.IsolatedAsyncioTestCase):
         self.hass.config_entries.async_add(entry)
         await async_setup_entry(self.hass, entry)
 
-        original_wh_id = f"sevenhugs_{entry.entry_id}"
+        original_wh_id = f"smart_remote_{entry.entry_id}"
         self.assertTrue(self.hass.webhook.has_webhook(original_wh_id))
 
         flow = SevenhugsConfigFlow()
@@ -805,7 +805,7 @@ class TestPhase4Tier4RealWorldWorkloads(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.05)
         self.assertIn("done", self.server.lua_steps_called)
 
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
 
         # Écouteur global sur le bus
         captured_events = []
@@ -881,7 +881,7 @@ class TestPhase4Tier4RealWorldWorkloads(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(coordinator._consecutive_failures, 2)
 
         # L'utilisateur appuie sur un bouton physique pendant le réveil
-        wh_id = f"sevenhugs_{entry.entry_id}"
+        wh_id = f"smart_remote_{entry.entry_id}"
         press_payload = {
             "domain": "light",
             "action": "turn_off",

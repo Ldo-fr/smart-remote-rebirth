@@ -41,12 +41,12 @@ from tests.conftest import MockSmartRemoteServer, aiohttp
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.client import (
     AsyncSmartRemoteClient,
     SevenhugsAuthError,
     SevenhugsConnectionError,
 )
-from custom_components.sevenhugs_smart_remote.crypto import API_NONCE
+from custom_components.smart_remote_rebirth.crypto import API_NONCE
 
 logging.basicConfig(level=logging.WARNING)
 

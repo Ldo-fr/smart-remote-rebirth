@@ -51,16 +51,16 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import selector
 from tests.conftest import MockSmartRemoteServer
 
-from custom_components.sevenhugs_smart_remote import (
+from custom_components.smart_remote_rebirth import (
     async_setup_entry,
     async_unload_entry,
     update_listener,
 )
-from custom_components.sevenhugs_smart_remote.config_flow import (
+from custom_components.smart_remote_rebirth.config_flow import (
     SevenhugsConfigFlow,
     SevenhugsOptionsFlowHandler,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_AUTO_SYNC_WEBHOOKS,
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
@@ -524,7 +524,7 @@ class TestSevenhugsOptionsFlowLifecycleIntegration(unittest.IsolatedAsyncioTestC
 
     async def test_webhook_persists_across_options_updates(self) -> None:
         """Garantit que le webhook local reste opérationnel et immuable lors des mises à jour d'options."""
-        wh_id = f"sevenhugs_{self.entry.entry_id}"
+        wh_id = f"smart_remote_{self.entry.entry_id}"
         self.assertIn(wh_id, self.hass.webhook._webhooks)
 
         # Première modification d'options

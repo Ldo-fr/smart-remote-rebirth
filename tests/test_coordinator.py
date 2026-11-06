@@ -54,12 +54,12 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 import tests.conftest
 import aiohttp
 
-from custom_components.sevenhugs_smart_remote.client import (
+from custom_components.smart_remote_rebirth.client import (
     AsyncSmartRemoteClient,
     SevenhugsAuthError,
     SevenhugsConnectionError,
 )
-from custom_components.sevenhugs_smart_remote.const import (
+from custom_components.smart_remote_rebirth.const import (
     CONF_HOST,
     CONF_POLLING_INTERVAL,
     CONF_PORT,
@@ -68,7 +68,7 @@ from custom_components.sevenhugs_smart_remote.const import (
     DEFAULT_NAME,
     DOMAIN,
 )
-from custom_components.sevenhugs_smart_remote.coordinator import (
+from custom_components.smart_remote_rebirth.coordinator import (
     DEFAULT_COORDINATOR_UPDATE_INTERVAL,
     SLEEP_CONSECUTIVE_FAILURES_THRESHOLD,
     SevenhugsDataUpdateCoordinator,
@@ -126,7 +126,7 @@ class TestSevenhugsDataUpdateCoordinatorInit(unittest.IsolatedAsyncioTestCase):
         self.entry = ConfigEntry(
             entry_id="coord_entry_001",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -141,7 +141,7 @@ class TestSevenhugsDataUpdateCoordinatorInit(unittest.IsolatedAsyncioTestCase):
         """Vérifie que la classe hérite de DataUpdateCoordinator et applique les valeurs par défaut."""
         coord = SevenhugsDataUpdateCoordinator(self.hass, self.mock_client, self.entry)
         self.assertIsInstance(coord, DataUpdateCoordinator)
-        self.assertEqual(coord.name, "sevenhugs_smart_remote_a06fe048b48b")
+        self.assertEqual(coord.name, "smart_remote_rebirth_a06fe048b48b")
         self.assertEqual(coord.update_interval, timedelta(seconds=60))
         self.assertEqual(coord.consecutive_failures, 0)
         self.assertEqual(coord.cached_data, {})
@@ -152,7 +152,7 @@ class TestSevenhugsDataUpdateCoordinatorInit(unittest.IsolatedAsyncioTestCase):
         """Vérifie la hiérarchie de résolution du nom (unique_id -> serial_number -> entry_id)."""
         # 1. Unique ID
         coord1 = SevenhugsDataUpdateCoordinator(self.hass, self.mock_client, self.entry)
-        self.assertEqual(coord1.name, "sevenhugs_smart_remote_a06fe048b48b")
+        self.assertEqual(coord1.name, "smart_remote_rebirth_a06fe048b48b")
 
         # 2. CONF_SERIAL_NUMBER sans unique_id
         entry_no_uid = ConfigEntry(
@@ -163,7 +163,7 @@ class TestSevenhugsDataUpdateCoordinatorInit(unittest.IsolatedAsyncioTestCase):
             unique_id=None,
         )
         coord2 = SevenhugsDataUpdateCoordinator(self.hass, self.mock_client, entry_no_uid)
-        self.assertEqual(coord2.name, "sevenhugs_smart_remote_serial_from_data")
+        self.assertEqual(coord2.name, "smart_remote_rebirth_serial_from_data")
 
         # 3. Fallback entry_id
         entry_fallback = ConfigEntry(
@@ -174,7 +174,7 @@ class TestSevenhugsDataUpdateCoordinatorInit(unittest.IsolatedAsyncioTestCase):
             unique_id=None,
         )
         coord3 = SevenhugsDataUpdateCoordinator(self.hass, self.mock_client, entry_fallback)
-        self.assertEqual(coord3.name, "sevenhugs_smart_remote_entry_id_fallback_999")
+        self.assertEqual(coord3.name, "smart_remote_rebirth_entry_id_fallback_999")
 
     def test_polling_interval_options_and_fallbacks(self) -> None:
         """Vérifie la configuration de l'intervalle de polling (options -> data -> 60s)."""
@@ -221,7 +221,7 @@ class TestSevenhugsDataUpdateCoordinatorTelemetry(unittest.IsolatedAsyncioTestCa
         self.entry = ConfigEntry(
             entry_id="coord_entry_002",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -386,7 +386,7 @@ class TestSevenhugsDataUpdateCoordinatorSleepResilience(unittest.IsolatedAsyncio
         self.entry = ConfigEntry(
             entry_id="coord_entry_003",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -522,7 +522,7 @@ class TestSevenhugsDataUpdateCoordinatorWakeUp(unittest.IsolatedAsyncioTestCase)
         self.entry = ConfigEntry(
             entry_id="coord_entry_004",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -572,7 +572,7 @@ class TestSevenhugsDataUpdateCoordinatorAuthAndColdStart(unittest.IsolatedAsynci
         self.entry = ConfigEntry(
             entry_id="coord_entry_005",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -625,7 +625,7 @@ class TestSevenhugsDataUpdateCoordinatorProperties(unittest.IsolatedAsyncioTestC
         self.entry = ConfigEntry(
             entry_id="coord_entry_006",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
@@ -688,7 +688,7 @@ class TestSevenhugsDataUpdateCoordinatorListeners(unittest.IsolatedAsyncioTestCa
         self.entry = ConfigEntry(
             entry_id="coord_entry_007",
             domain=DOMAIN,
-            title="Sevenhugs Smart Remote (5726)",
+            title="Smart Remote (5726)",
             data={
                 CONF_HOST: "192.168.1.100",
                 CONF_PORT: 80,
