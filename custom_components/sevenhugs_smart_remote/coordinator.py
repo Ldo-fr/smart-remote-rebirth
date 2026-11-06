@@ -111,7 +111,7 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             remotes = raw_data.get("remotes")
             first_remote = remotes[0] if isinstance(remotes, list) and remotes else {}
 
-            _LOGGER.warning("Télémétrie Sevenhugs /api/settings reçue pour %s: %s", self.name, raw_data)
+            _LOGGER.debug("Télémétrie Sevenhugs /api/settings reçue pour %s: %s", self.name, raw_data)
 
             mac_addr = (
                 raw_data.get("mac_address")
@@ -158,9 +158,9 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 try:
                     battery = max(0, min(100, int(raw_battery)))
                 except (TypeError, ValueError):
-                    battery = self._cached_data.get("battery", 100)
+                    battery = self._cached_data.get("battery")
             else:
-                battery = self._cached_data.get("battery", 100)
+                battery = self._cached_data.get("battery")
 
             # Recherche multi-sources du Wi-Fi / RSSI
             raw_wifi = None
@@ -225,9 +225,12 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             elif raw_docked is not None:
                 docked = bool(raw_docked)
                 charging = bool(raw_docked)
-            else:
+            elif "charging" in raw_data or "docked" in raw_data:
                 charging = bool(raw_data.get("charging", raw_data.get("docked", False)))
                 docked = bool(raw_data.get("docked", charging))
+            else:
+                charging = self._cached_data.get("charging")
+                docked = self._cached_data.get("docked")
 
             # Écran ou mode actif
             active_screen = str(

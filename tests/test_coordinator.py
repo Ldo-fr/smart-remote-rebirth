@@ -278,11 +278,11 @@ class TestSevenhugsDataUpdateCoordinatorTelemetry(unittest.IsolatedAsyncioTestCa
         data4 = await self.coord._async_update_data()
         self.assertEqual(data4["battery"], 73)
 
-        # 5. Valeur None sans cache préalable -> 100
+        # 5. Valeur None sans cache préalable -> None
         fresh_coord = SevenhugsDataUpdateCoordinator(self.hass, self.mock_client, self.entry)
         self.mock_client.settings_response = {"battery": None}
         data5 = await fresh_coord._async_update_data()
-        self.assertEqual(data5["battery"], 100)
+        self.assertIsNone(data5["battery"])
 
     async def test_wifi_signal_and_rssi_fallback(self) -> None:
         """Vérifie l'extraction du signal Wi-Fi avec repli sur 'rssi' et filtrage des valeurs non valides."""

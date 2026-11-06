@@ -85,6 +85,7 @@ class SevenhugsChargingBinarySensor(SevenhugsBaseEntity, BinarySensorEntity):
 
     _attr_device_class = BinarySensorDeviceClass.BATTERY_CHARGING
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
 
     def __init__(
         self,
