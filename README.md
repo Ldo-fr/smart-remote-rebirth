@@ -17,6 +17,12 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 > - **Rétro-ingénierie indépendante :** Ce projet n'est ni affilié, ni soutenu par la société Sevenhugs (dont les serveurs cloud ont été définitivement arrêtés en mai 2022).
 > - **Aucun cloud requis :** Toutes les communications s'effectuent à **100 % en local** sur votre réseau Wi-Fi (chiffrement SRP-6a, Ed25519, ChaCha20-Poly1305).
 
+> [!NOTE]
+> ### 💡 Démarche du projet & Clause de non-affiliation
+> **Je n'ai absolument rien à voir avec l'ancienne société Sevenhugs (Sevenhugs SAS) ou ses ayants droit.**
+> Ce projet est une démarche personnelle, indépendante et bénévole de passionné. La Sevenhugs Smart Remote est un appareil matériel d'excellente facture qui s'est retrouvé prématurément privé de configuration suite à l'arrêt définitif des serveurs cloud en mai 2022.
+> Mon unique objectif est de **redonner vie à un produit qui n'est plus supporté**, de sauver ces télécommandes de l'obsolescence programmée et d'éviter qu'elles ne finissent comme déchets électroniques au fond d'un tiroir, en leur offrant une seconde vie moderne et 100 % locale grâce à Home Assistant.
+
 ---
 
 ## 📊 État d'avancement des fonctionnalités
