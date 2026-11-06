@@ -874,10 +874,10 @@ LICENSE                       # Licence Open Source (Apache 2.0 / MIT)
 {
   "domain": "sevenhugs_smart_remote",
   "name": "Sevenhugs Smart Remote",
-  "codeowners": ["@LudovicLaly"],
+  "codeowners": ["@Ldo-fr"],
   "config_flow": true,
-  "documentation": "https://github.com/LudovicLaly/smart-remote-rebirth",
-  "issue_tracker": "https://github.com/LudovicLaly/smart-remote-rebirth/issues",
+  "documentation": "https://github.com/Ldo-fr/smart-remote-rebirth",
+  "issue_tracker": "https://github.com/Ldo-fr/smart-remote-rebirth/issues",
   "dependencies": ["webhook"],
   "integration_type": "hub",
   "iot_class": "local_polling",
