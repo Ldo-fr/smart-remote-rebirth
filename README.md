@@ -22,6 +22,12 @@ Native **Home Assistant** integration (compatible with HACS / Marketplace) and l
 > - **100% local, no cloud required:** All communications take place strictly **locally over your Wi-Fi network** (SRP-6a, Ed25519, ChaCha20-Poly1305 encryption).
 
 > [!NOTE]
+> ### 🎯 Project Scope & Purpose
+> **The goal of this project is not to restore 100% of the original features.**
+> Proprietary cloud-dependent features — such as the online infrared code database, the "Point Mode" room beacons (UWB), the weather widget, or native legacy cloud integrations — are not being recreated.
+> The primary objective is to **repurpose the remote as a 100% local touch controller**: leverage its display and touchscreen to trigger **local webhooks** and effortlessly drive your **Home Assistant** entities, scenes, and automations.
+
+> [!NOTE]
 > ### 💡 Project Motivation & Non-Affiliation Disclaimer
 > **I have absolutely no affiliation with the former Sevenhugs company (Sevenhugs SAS) or its successors.**
 > This project is an independent, non-profit personal initiative driven by hobbyist passion. The Sevenhugs Smart Remote is a beautifully engineered piece of hardware that became prematurely unusable following the permanent shutdown of its original cloud servers in May 2022.

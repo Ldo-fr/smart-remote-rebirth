@@ -22,6 +22,12 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 > - **Aucun cloud requis :** Toutes les communications s'effectuent à **100 % en local** sur votre réseau Wi-Fi (chiffrement SRP-6a, Ed25519, ChaCha20-Poly1305).
 
 > [!NOTE]
+> ### 🎯 Périmètre & Objectif du projet
+> **Le but de ce projet n'est pas de restaurer 100 % des fonctionnalités d'origine de la télécommande.**
+> Les fonctionnalités qui dépendaient exclusivement des serveurs cloud ou de services tiers fermés — telles que la base de codes infrarouge cloud, le « Point Mode » avec ses balises UWB, le widget météo ou les intégrations propriétaires — ne sont pas recréées.
+> L'objectif central est de **détourner et recycler la télécommande en contrôleur tactile 100 % local** : utiliser son écran pour déclencher des **webhooks locaux** et piloter instantanément vos entités, scénarios et automatisations **Home Assistant**.
+
+> [!NOTE]
 > ### 💡 Démarche du projet & Clause de non-affiliation
 > **Je n'ai absolument rien à voir avec l'ancienne société Sevenhugs (Sevenhugs SAS) ou ses ayants droit.**
 > Ce projet est une démarche personnelle, indépendante et bénévole de passionné. La Sevenhugs Smart Remote est un appareil matériel d'excellente facture qui s'est retrouvé prématurément privé de configuration suite à l'arrêt définitif des serveurs cloud en mai 2022.
