@@ -62,6 +62,7 @@ __all__ = [
     "SevenhugsData",
     "SevenhugsDataUpdateCoordinator",
     "SevenhugsLuaInjector",
+    "async_setup",
     "async_setup_entry",
     "async_unload_entry",
     "update_listener",
@@ -122,6 +123,11 @@ class SevenhugsData(dict):
             return getattr(client, name)
 
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
+    """Initialise le composant Sevenhugs Smart Remote (mode déclaratif YAML non supporté, UI uniquement)."""
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
