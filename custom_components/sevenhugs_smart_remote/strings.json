@@ -1,0 +1,105 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Sevenhugs Smart Remote",
+        "description": "Enter the IP address or hostname of your Sevenhugs Smart Remote.",
+        "data": {
+          "host": "Host / IP Address",
+          "port": "Port"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Discovered Sevenhugs Smart Remote",
+        "description": "Discovered Sevenhugs Smart Remote (Serial: {sn}) at {host}. Do you want to pair this remote?",
+        "data": {}
+      },
+      "pair_init": {
+        "title": "Pairing Initialization",
+        "description": "Make sure your remote's screen is turned on. When you click Next, Home Assistant will request a pairing PIN.\n\nNote: The remote's microcontroller takes about 16 seconds to calculate its security code.\nLook at your remote's screen for an 8-digit PIN (format XXX-XX-XXX).",
+        "data": {}
+      },
+      "pair_pin": {
+        "title": "Enter Remote PIN Code",
+        "description": "Look at your Smart Remote screen. Enter the 8-digit PIN code displayed (e.g. 123-45-678 or 12345678):",
+        "data": {
+          "pin": "PIN Code"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Sevenhugs Smart Remote",
+        "description": "Update the IP address or hostname of your Sevenhugs Smart Remote.",
+        "data": {
+          "host": "Host / IP Address"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Sevenhugs Smart Remote",
+        "description": "The security session for Sevenhugs Smart Remote ({host}) is no longer valid. Do you want to re-pair it now?",
+        "data": {}
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to communicate with the remote. Check its IP address and Wi-Fi connection.",
+      "timeout_connect": "The remote took too long to calculate its security code.",
+      "remote_busy": "The remote is busy resetting its security session. Please retry.",
+      "invalid_pin": "The PIN code entered is incorrect or invalid. Please check the digits on the remote.",
+      "pairing_failed": "Pairing failed. Could not verify cryptographic proof.",
+      "already_configured": "This Sevenhugs Smart Remote is already configured in Home Assistant.",
+      "unknown": "An unexpected error occurred. Please consult Home Assistant logs."
+    },
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "already_in_progress": "Configuration flow is already in progress for this device.",
+      "reconfigure_successful": "Reconfiguration was successful.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sevenhugs Smart Remote Options",
+        "description": "Configure operational settings for your Smart Remote.",
+        "data": {
+          "entities": "Entities exposed on the remote",
+          "trigger_resync": "Trigger immediate resync to remote",
+          "polling_interval": "Polling interval (seconds)",
+          "auto_sync_webhooks": "Automatically synchronize webhooks",
+          "timeout": "Request timeout (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
+      },
+      "active_screen": {
+        "name": "Active screen"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "Charging"
+      },
+      "connectivity": {
+        "name": "Connectivity"
+      }
+    },
+    "button": {
+      "force_sync": {
+        "name": "Force sync"
+      },
+      "ping": {
+        "name": "Ping"
+      },
+      "backup_config": {
+        "name": "Backup configuration"
+      }
+    }
+  }
+}

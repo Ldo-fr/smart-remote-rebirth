@@ -1,0 +1,105 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connexion à la Sevenhugs Smart Remote",
+        "description": "Entrez l'adresse IP ou le nom d'hôte de votre Sevenhugs Smart Remote.",
+        "data": {
+          "host": "Adresse IP / Hôte",
+          "port": "Port"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Associer votre Sevenhugs Smart Remote",
+        "description": "La télécommande Sevenhugs Smart Remote (Série : {sn}) a été détectée à l'adresse {host}. Souhaitez-vous démarrer la procédure d'appairage sécurisé ?",
+        "data": {}
+      },
+      "pair_init": {
+        "title": "Préparation du jumelage sécurisé",
+        "description": "Veuillez vous assurer que l'écran de votre télécommande est allumé. En cliquant sur Suivant, Home Assistant va solliciter la télécommande.\n\nAttention : Le microcontrôleur de la télécommande met environ 16 secondes à calculer son code de sécurité.\nL'écran de la télécommande va afficher un code PIN à 8 chiffres (format XXX-XX-XXX).",
+        "data": {}
+      },
+      "pair_pin": {
+        "title": "Saisir le code PIN de la télécommande",
+        "description": "Regardez l'écran tactile de votre Smart Remote. Entrez le code à 8 chiffres affiché (ex. 123-45-678) :",
+        "data": {
+          "pin": "Code PIN"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurer la Sevenhugs Smart Remote",
+        "description": "Mettre à jour l'adresse IP ou le nom d'hôte de votre télécommande.",
+        "data": {
+          "host": "Adresse IP / Hôte"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Réauthentifier la Sevenhugs Smart Remote",
+        "description": "Les clés de sécurité de la Sevenhugs Smart Remote ({host}) ne sont plus valides. Souhaitez-vous relancer l'appairage ?",
+        "data": {}
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de communiquer avec la télécommande. Vérifiez son adresse IP et sa connexion Wi-Fi.",
+      "timeout_connect": "La télécommande a mis trop de temps à répondre pour générer son code.",
+      "remote_busy": "La télécommande réinitialise sa session de sécurité. Veuillez réessayer dans quelques secondes.",
+      "invalid_pin": "Le code PIN saisi est incorrect. Veuillez vérifier les chiffres affichés sur la télécommande.",
+      "pairing_failed": "Échec du jumelage. Impossible de vérifier les identifiants cryptographiques.",
+      "already_configured": "Cette télécommande Sevenhugs est déjà configurée dans Home Assistant.",
+      "unknown": "Une erreur inattendue est survenue. Consultez les journaux d'erreurs de Home Assistant."
+    },
+    "abort": {
+      "already_configured": "Cet appareil est déjà configuré.",
+      "already_in_progress": "La configuration est déjà en cours pour cet appareil.",
+      "reconfigure_successful": "La reconfiguration a été effectuée avec succès.",
+      "reauth_successful": "La réauthentification a été effectuée avec succès."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options de la Sevenhugs Smart Remote",
+        "description": "Configurer les paramètres opérationnels de votre télécommande.",
+        "data": {
+          "entities": "Entités exposées sur la télécommande",
+          "trigger_resync": "Déclencher la resynchronisation immédiate vers la télécommande",
+          "polling_interval": "Intervalle de rafraîchissement (secondes)",
+          "auto_sync_webhooks": "Synchronisation automatique des webhooks",
+          "timeout": "Délai d'attente des requêtes (secondes)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Batterie"
+      },
+      "wifi_signal": {
+        "name": "Signal Wi-Fi"
+      },
+      "active_screen": {
+        "name": "Écran actif"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "En charge"
+      },
+      "connectivity": {
+        "name": "Connectivité"
+      }
+    },
+    "button": {
+      "force_sync": {
+        "name": "Forcer la synchronisation"
+      },
+      "ping": {
+        "name": "Ping"
+      },
+      "backup_config": {
+        "name": "Sauvegarder la configuration"
+      }
+    }
+  }
+}
