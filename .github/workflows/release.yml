@@ -80,7 +80,7 @@ jobs:
               patch += 1
 
           new_version = f"{major}.{minor}.{patch}"
-          is_prerelease = "true" if any(suffix in all_text for suffix in ["-alpha", "-beta", "-rc", "prerelease"]) else "false"
+          is_prerelease = "true" if any(pre in new_version for pre in ["-alpha", "-beta", "-rc"]) else "false"
 
           print(f"Version actuelle : {current_version}")
           print(f"Nouvelle version : {new_version} (prerelease={is_prerelease})")
@@ -129,6 +129,7 @@ jobs:
             $FLAGS
 
           # Convertir les releases antérieures en versions stables pour que HACS les indexe correctement
+          gh release edit v0.2.6 --prerelease=false || true
           gh release edit v0.2.5 --prerelease=false || true
           gh release edit v0.2.4 --prerelease=false || true
         env:
