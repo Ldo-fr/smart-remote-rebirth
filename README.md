@@ -1,137 +1,119 @@
 # Sevenhugs Smart Remote Rebirth (`SR1A`)
 
-Outil local de jumelage, de sauvegarde, de configuration et d'intégration **Home Assistant** pour la télécommande universelle **Sevenhugs Smart Remote** (modèle `SR1A`, FCC ID `2AEVC-SR1A`).
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom%20Repository-orange.svg)](https://hacs.xyz/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1%2B%20%7C%202026.11%2B-blue.svg)](https://www.home-assistant.io/)
+[![Version](https://img.shields.io/badge/version-0.1.0--alpha-yellow.svg)](https://github.com/LudovicLaly/smart-remote-rebirth/releases)
+[![Build & Tests](https://img.shields.io/badge/tests-330%20passed%20(100%25)-brightgreen.svg)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Depuis la fermeture définitive des serveurs cloud Sevenhugs (`*.sevenhugs.com` et `cdn.prod.cobra.sevenhugs.com`) en mai 2022, l'application mobile officielle affiche un écran blanc lorsqu'on tente d'ajouter ou de configurer des intégrations Wi-Fi ou des Webhooks.
-
-Ce projet est le fruit d'une rétro-ingénierie complète du protocole cryptographique de la télécommande et de son moteur Lua embarqué (`/rom/webapp/resources/setup.lua`). Il permet de **reprendre le contrôle à 100 % en local**, sans aucun serveur externe ni modification matérielle.
-
----
-
-## Fonctionnalités principales
-
-- **Jumelage cryptographique local (`Pair-Setup` & `Pair-Verify`)** : Implémentation complète du protocole HAP modifié par Sevenhugs (`SRP-6a 3072-bit`, `X25519`, `Ed25519`, `HKDF-SHA512`, `ChaCha20-Poly1305`).
-- **Client API REST chiffré (`/api/*`)** : Lecture et modification de toute la configuration de la télécommande (appareils, pièces/groupes, scènes, ordre du carrousel, dispositions d'écrans et boutons personnalisés).
-- **Remplacement local du CDN disparu (`web-wizard`)** : Serveur Web local (`http://localhost:8080`) qui remplace le frontend disparu `cdn.prod.cobra.sevenhugs.com/webapp/v2/static/js/app.js` et affiche directement les assistants Lua embarqués dans la ROM de la télécommande (`Webhooks`, `Philips Hue`, `Kodi`, `Dummy devices`, etc.).
-- **Intégration directe avec Home Assistant** :
-  1. **Via le plugin natif `sevenhugs.control.webhooks`** : Création en une ligne de commande (ou via l'interface Web locale) de boutons qui envoient des requêtes HTTP (`POST`, `GET`, `PUT`, `DELETE`) en Wi-Fi directement vers `http://<IP_HOME_ASSISTANT>:8123/api/webhook/<ID>`.
-  2. **Via `emulated_hue`** : Contrôle direct des entités Home Assistant (lumières, prises, volets) via le plugin local Philips Hue (`sevenhugs.control.hue`).
+Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte à outils locale pour la télécommande universelle **Sevenhugs Smart Remote** (modèle `SR1A`, FCC ID `2AEVC-SR1A`).
 
 ---
 
-## Structure du projet
-
-```text
-smart-remote-rebirth/
-├── README.md                       # Ce guide d'utilisation et d'intégration
-├── requirements.txt                # Dépendance Python (cryptography>=41.0.0)
-├── smartremote_keys.example.json   # Modèle du fichier de clés généré au jumelage
-├── sevenhugs_bridge.py             # Outil CLI unifié + Studio Web local (web-wizard)
-├── pair_and_verify.py              # Script autonome de jumelage initial (Pair-Setup + Pair-Verify)
-├── pair_verify.py                  # Script autonome de reconnexion (Pair-Verify) et dump rapide
-└── docs/
-    └── PROTOCOL_AND_API.md         # Documentation technique complète (Crypto, API REST, Moteur Lua)
-```
+> [!WARNING]
+> ### ⚠️ PROJET EN VERSION DE TRAVAIL (ALPHA / EXPÉRIMENTAL)
+> **Ce logiciel est une version de travail préliminaire fournie à des fins de test et de recherche communautaire.**
+> - **Non destiné à la production :** Des instabilités, déconnexions ou changements de structure peuvent survenir au fil des mises à jour. Ne comptez pas sur cette intégration pour des systèmes d'alarme ou de sécurité critiques.
+> - **Rétro-ingénierie indépendante :** Ce projet n'est ni affilié, ni soutenu par la société Sevenhugs (dont les serveurs cloud ont été définitivement arrêtés en mai 2022).
+> - **Aucun cloud requis :** Toutes les communications s'effectuent à **100 % en local** sur votre réseau Wi-Fi (chiffrement SRP-6a, Ed25519, ChaCha20-Poly1305).
 
 ---
 
-## Installation
+## 📊 État d'avancement des fonctionnalités
 
-1. Clonez ce dépôt et créez un environnement virtuel Python 3 :
+| Fonctionnalité | Statut | Description |
+| :--- | :---: | :--- |
+| **Appairage local graphique (Config Flow)** | ✅ Opérationnel | Découverte automatique mDNS (`_smart_remote._tcp.local.`), saisie du code PIN 8 chiffres dans l'UI Home Assistant, calcul SRP-6a non-bloquant. |
+| **Télémétrie en temps réel (Capteurs)** | ✅ Opérationnel | Capteurs de niveau de batterie (`%`), signal Wi-Fi / RSSI (`dBm`), état sur le dock de charge (`binary_sensor`). |
+| **Contrôle bidirectionnel (Webhooks locaux)** | ✅ Opérationnel | Réception sécurisée (`local_only=True`) des appuis touches sur l'écran tactile et déclenchement instantané des services HA (`light`, `switch`, `scene`). |
+| **Événements d'automatisation** | ✅ Opérationnel | Émission systématique de l'événement `sevenhugs_button_pressed` sur le bus d'événements Home Assistant. |
+| **Gestion de la veille (Deep Sleep)** | ✅ Opérationnel | Tolérance aux micro-coupures Wi-Fi lors de l'endormissement de la télécommande et reconnexion transparente lors de la reprise en main. |
+| **Sélection d'entités (Options Flow)** | ✅ Opérationnel | Interface graphique pour sélectionner les appareils et scènes exposés à la télécommande. |
+| **Injecteur d'assistants Lua** | ✅ Opérationnel | Automatisation de la configuration des boutons via le serveur embarqué de la télécommande. |
+| **Grilles multimédia avancées (6×12)** | ⏳ En cours | Interface dédiée avec contrôle du volume, transport et navigation pour les `media_player`. |
+| **Synchronisation de scènes complexes** | ⏳ En cours | Mapping avancé des scènes d'ambiance multi-pièces. |
+
+---
+
+## 🚀 Installation dans Home Assistant
+
+### Méthode 1 : Via HACS / Marketplace (Recommandé)
+
+1. Assurez-vous que **HACS** (ou le nouveau menu **Marketplace** de Home Assistant 2026.11+) est installé.
+2. Ouvrez **HACS / Marketplace** dans la barre latérale de Home Assistant.
+3. Cliquez sur le menu en haut à droite (trois petits points) > **Dépôts personnalisés** (*Custom repositories*).
+4. Renseignez :
+   - **Dépôt** : `https://github.com/LudovicLaly/smart-remote-rebirth`
+   - **Type** : `Intégration`
+5. Cliquez sur **Ajouter**, puis recherchez **Sevenhugs Smart Remote**.
+6. Cliquez sur **Télécharger**, puis **redémarrez Home Assistant**.
+
+---
+
+### Méthode 2 : Installation manuelle
+
+1. Téléchargez ou clonez ce dépôt :
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
+   git clone https://github.com/LudovicLaly/smart-remote-rebirth.git
    ```
-   *(Seule la bibliothèque `cryptography` est requise ; tout le reste utilise la bibliothèque standard Python).*
+2. Copiez le dossier `custom_components/sevenhugs_smart_remote` dans le répertoire `config/custom_components/` de votre Home Assistant :
+   ```bash
+   cp -r smart-remote-rebirth/custom_components/sevenhugs_smart_remote /chemin/vers/votre/config/custom_components/
+   ```
+3. **Redémarrez Home Assistant**.
 
 ---
 
-## Guide d'utilisation pas-à-pas
+## ⚙️ Configuration & Appairage
 
-### 1. Trouver l'adresse IP de la Smart Remote
-La télécommande annonce sa présence sur le réseau local via mDNS sous le service `_smart_remote._tcp.local.` (port TCP `80`).
-```bash
-avahi-browse -rt _smart_remote._tcp
-```
+Une fois l'intégration installée et Home Assistant redémarré :
 
-### 2. Jumelage initial (`pair`) — *Une seule fois*
-Si vous n'avez pas encore de fichier `smartremote_keys.json`, lancez le jumelage initial :
-```bash
-python3 sevenhugs_bridge.py --ip 192.168.1.XX pair
-```
-1. Le script envoie la requête `M1` à `/pair-setup`.
-2. **Patientez environ 16 secondes** pendant que le processeur de la télécommande calcule sa clé publique SRP-6a 3072 bits.
-3. Un code de sécurité à 8 chiffres (`XXX-XX-XXX`) s'affiche sur l'écran de la Smart Remote : saisissez-le dans le terminal.
-4. Le script termine `Pair-Setup` (`M3` à `M6`), enchaîne immédiatement `Pair-Verify` (`M1` à `M4`), et sauvegarde vos clés permanentes Ed25519 dans `smartremote_keys.json`.
+1. Allez dans **Paramètres > Appareils et Services > Ajouter une intégration**.
+2. Recherchez **Sevenhugs Smart Remote**.
+3. **Appairage assisté** :
+   - Si votre télécommande est allumée et connectée au même Wi-Fi, elle est **détectée automatiquement** via mDNS. Sinon, entrez simplement son adresse IP locale.
+   - Cliquez sur **Suivant**. L'intégration initialise le calcul d'empreinte matérielle SRP-6a (~16 secondes).
+   - Un **code PIN à 8 chiffres** (`XXX-XX-XXX`) s'affiche sur l'écran AMOLED de la Smart Remote.
+   - Saisissez ce code dans la fenêtre Home Assistant et validez.
+4. **C'est prêt !** Votre télécommande apparaît comme un appareil avec ses entités (niveau de batterie, Wi-Fi, chargeur, et boutons d'action).
 
 > [!TIP]
-> Une fois `smartremote_keys.json` généré, **vous n'aurez plus jamais besoin de saisir de code PIN**. Toutes les commandes suivantes établissent une session chiffrée `Pair-Verify` automatiquement en moins d'une seconde.
+> Une fois appairée, les clés cryptographiques de session sont conservées de manière sécurisée dans Home Assistant. Vous n'aurez **plus jamais besoin de ressaisir de code PIN**, même après un redémarrage de votre serveur ou de la télécommande.
 
 ---
 
-### 3. Inspecter et sauvegarder la télécommande (`status` & `backup`)
+## 🧪 Tester l'intégration localement (POC interactif)
 
-- **Afficher l'inventaire complet** (modèle, firmware, appareils configurés, groupes, ordre du carrousel) :
-  ```bash
-  python3 sevenhugs_bridge.py status
-  ```
-
-- **Sauvegarder toute la configuration déchiffrée** (tous les endpoints `/api/*` + toutes les interfaces personnalisées et listes de commandes IR/Wi-Fi) :
-  ```bash
-  python3 sevenhugs_bridge.py backup ma_sauvegarde.json
-  ```
-
-- **Inspecter les écrans/boutons et les commandes d'un appareil** :
-  ```bash
-  python3 sevenhugs_bridge.py custom-ui sevenhugs.control.infrared:SOLO5_M3708_fff1980f
-  ```
-
----
-
-### 4. Lancer le Studio Web local (`web-wizard`)
-
-L'application officielle Sevenhugs échoue lors de l'ajout ou de l'édition d'un service Wi-Fi car elle redirige vers `/api/devices/<package_id>/setup`, qui tente de charger un script Vue.js hébergé sur `https://cdn.prod.cobra.sevenhugs.com/webapp/v2/static/js/app.js` (hors ligne).
-
-Or, **le moteur backend (`/rom/webapp/resources/setup.lua`) tourne toujours localement sur la télécommande !**
-
-Pour utiliser graphiquement tous les assistants embarqués de la télécommande :
+Le dépôt inclut un script de démonstration autonome ne nécessitant aucune dépendance complexe :
 ```bash
-python3 sevenhugs_bridge.py web-wizard --port 8080
+python3 poc_quickstart.py
 ```
-Ouvrez ensuite **`http://localhost:8080`** dans votre navigateur :
-- Choisissez un plugin dans la colonne de gauche (`Webhooks`, `Dummy Light`, `Dummy TV`, `Kodi`, `Philips Hue`, etc.).
-- Naviguez dans l'assistant Lua de la télécommande, ajoutez vos déclencheurs HTTP ou appareils, puis cliquez sur **Next / Done** pour enregistrer l'appareil sur la télécommande.
+Ce script démarre un serveur Sevenhugs virtuel, initialise le composant Home Assistant, lit la télémétrie de batterie et simule un appui tactile avec allumage d'une ampoule HA en moins d'une seconde.
+
+*(Vous pouvez également tester directement avec une télécommande physique connectée : `python3 poc_quickstart.py --ip 192.168.1.XX`).*
 
 ---
 
-### 5. Intégrer la Smart Remote avec Home Assistant
+## 🛠️ Outils historiques en ligne de commande (CLI & Rétro-ingénierie)
 
-#### Méthode A : Boutons Webhooks HTTP directs (Recommandé)
-Le plugin embarqué `sevenhugs.control.webhooks` permet à la télécommande d'envoyer directement des requêtes HTTP (`POST`, `GET`, `PUT`, `DELETE`) sur votre réseau local Wi-Fi, sans passer par le smartphone ni par Internet.
+Pour les développeurs et passionnés souhaitant manipuler directement l'API de la télécommande hors Home Assistant, le dépôt conserve les scripts d'exploration d'origine :
 
-1. Dans **Home Assistant**, créez une automatisation déclenchée par un **Webhook** (ex. ID `sr_salon_toggle`, méthode `POST`, option *"Uniquement accessible depuis le réseau local"* activée).
-2. Créez l'appareil Webhooks et ses déclencheurs sur la Smart Remote en une seule commande :
-   ```bash
-   python3 sevenhugs_bridge.py webhooks-create \
-     --trigger 'Lumière Salon|POST|http://192.168.1.100:8123/api/webhook/sr_salon_toggle|{"entity":"light.salon"}' \
-     --trigger 'Mode Cinéma|POST|http://192.168.1.100:8123/api/webhook/sr_cinema|{"scene":"cinema"}' \
-     --trigger 'Volets Salon|POST|http://192.168.1.100:8123/api/webhook/sr_volets|{"action":"toggle"}'
-   ```
-   *(Vous pouvez également les ajouter ou les modifier graphiquement via `python3 sevenhugs_bridge.py web-wizard`).*
-
-#### Méthode B : Emulated Hue (Contrôle d'intensité et d'état)
-La télécommande possède le plugin local `sevenhugs.control.hue`. En activant l'intégration [`emulated_hue`](https://www.home-assistant.io/integrations/emulated_hue/) dans Home Assistant (sur le port `80`), Home Assistant simule un pont Philips Hue local et expose vos entités (`light`, `switch`, `script`, `cover`) directement à la télécommande.
-
-Vous pouvez lancer la découverte réseau locale de la télécommande avec :
-```bash
-python3 sevenhugs_bridge.py discover
-```
+- [**`pair_and_verify.py`**](pair_and_verify.py) : Script autonome de jumelage initial en ligne de commande.
+- [**`pair_verify.py`**](pair_verify.py) : Test rapide de session chiffrée et extraction des dumps d'état.
+- [**`sevenhugs_bridge.py`**](sevenhugs_bridge.py) : Passerelle et studio Web local de configuration.
+- [**`docs/PROTOCOL_AND_API.md`**](docs/PROTOCOL_AND_API.md) : Spécification complète et documentée du protocole (SRP-6a 3072-bit, Ed25519, X25519, ChaCha20-Poly1305, endpoints `/api/*` et assistants Lua `/rom/webapp/resources/setup.lua`).
+- [**`docs/HOME_ASSISTANT_INTEGRATION_PLAN.md`**](docs/HOME_ASSISTANT_INTEGRATION_PLAN.md) : Plan d'architecture technique et feuille de route détaillée du composant Home Assistant.
 
 ---
 
-## Documentation technique du protocole
+## 🤝 Contribution & Signalement de bugs
 
-Tous les détails techniques découverts lors de la rétro-ingénierie (paramètres cryptographiques HAP, subtilités de `Pair-Verify`, chiffrement `ChaCha20-Poly1305` avec nonce `HuMiThFr`, table complète des 31 routes REST `/api/*`, schémas JSON et fonctionnement du moteur Lua `/rom/webapp/resources/setup.lua`) sont documentés dans :
+Les contributions sont les bienvenues ! N'hésitez pas à :
+1. Ouvrir une **Issue** pour signaler un comportement anormal ou suggérer une amélioration.
+2. Soumettre une **Pull Request** pour enrichir le support des entités ou affiner la documentation.
 
-👉 **[`docs/PROTOCOL_AND_API.md`](file:///web/smart-remote-rebirth/docs/PROTOCOL_AND_API.md)**
+---
+
+## 📄 Licence
+
+Ce projet est distribué sous licence libre **MIT**. Consultez le fichier [LICENSE](LICENSE) pour plus d'informations.
