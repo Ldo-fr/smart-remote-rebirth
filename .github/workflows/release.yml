@@ -1,0 +1,129 @@
+name: Automated Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release & Version Bump
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Determine next version and update manifest
+        id: versioning
+        run: |
+          python3 - << 'EOF'
+          import json
+          import os
+          import re
+          import subprocess
+
+          manifest_path = "custom_components/sevenhugs_smart_remote/manifest.json"
+          with open(manifest_path, "r", encoding="utf-8") as f:
+              manifest = json.load(f)
+
+          current_version = manifest.get("version", "0.1.0")
+          # Retirer un éventuel suffixe (-alpha, -beta, etc.) pour extraire le semver numérique
+          base_match = re.match(r"^(\d+)\.(\d+)\.(\d+)", current_version)
+          if base_match:
+              major, minor, patch = map(int, base_match.groups())
+          else:
+              major, minor, patch = 0, 1, 0
+
+          # Récupérer les messages de commit depuis le dernier tag ou les 10 derniers commits
+          try:
+              last_tag = subprocess.check_output(
+                  ["git", "describe", "--tags", "--abbrev=0"],
+                  stderr=subprocess.DEVNULL,
+                  text=True
+              ).strip()
+              log_range = f"{last_tag}..HEAD"
+          except Exception:
+              log_range = "HEAD~1..HEAD"
+
+          try:
+              commit_logs = subprocess.check_output(
+                  ["git", "log", log_range, "--pretty=%B"],
+                  text=True
+              )
+          except Exception:
+              commit_logs = ""
+
+          head_msg = subprocess.check_output(["git", "log", "-1", "--pretty=%B"], text=True)
+          all_text = f"{commit_logs}\n{head_msg}".lower()
+
+          # Détection du type d'incrémentation selon Conventional Commits
+          if "breaking change" in all_text or re.search(r"^[a-z]+(\([^\)]+\))?!:", all_text, re.MULTILINE):
+              major += 1
+              minor = 0
+              patch = 0
+          elif re.search(r"^feat(\([^\)]+\))?:", all_text, re.MULTILINE):
+              minor += 1
+              patch = 0
+          else:
+              patch += 1
+
+          new_version = f"{major}.{minor}.{patch}"
+          is_prerelease = "true" if major == 0 else "false"
+
+          print(f"Version actuelle : {current_version}")
+          print(f"Nouvelle version : {new_version} (prerelease={is_prerelease})")
+
+          manifest["version"] = new_version
+          with open(manifest_path, "w", encoding="utf-8") as f:
+              json.dump(manifest, f, indent=2)
+              f.write("\n")
+
+          # Exporter pour les étapes GitHub Actions suivantes
+          github_output = os.environ.get("GITHUB_OUTPUT", "")
+          with open(github_output, "a", encoding="utf-8") as out:
+              out.write(f"new_version={new_version}\n")
+              out.write(f"tag_name=v{new_version}\n")
+              out.write(f"is_prerelease={is_prerelease}\n")
+          EOF
+
+      - name: Build release zip archive
+        run: |
+          cd custom_components
+          zip -r ../sevenhugs_smart_remote.zip sevenhugs_smart_remote -x "*__pycache__*" "*.pyc"
+          cd ..
+
+      - name: Commit version bump to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add custom_components/sevenhugs_smart_remote/manifest.json
+          git commit -m "chore(release): bump version to ${{ steps.versioning.outputs.new_version }} [skip ci]"
+          git push origin main
+
+      - name: Create and push Git tag
+        run: |
+          git tag ${{ steps.versioning.outputs.tag_name }}
+          git push origin ${{ steps.versioning.outputs.tag_name }}
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versioning.outputs.tag_name }}
+          name: Release ${{ steps.versioning.outputs.tag_name }}
+          generate_release_notes: true
+          prerelease: ${{ steps.versioning.outputs.is_prerelease == 'true' }}
+          files: sevenhugs_smart_remote.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
