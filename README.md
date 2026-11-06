@@ -117,10 +117,12 @@ Pour les développeurs et passionnés souhaitant manipuler directement l'API de 
 Le dépôt utilise **GitHub Actions** pour automatiser les tests et la publication des versions :
 
 1. **Développement sur branche** : Créez une branche (`feature/mon-ajout` ou `fix/mon-correctif`).
-2. **Pull Request & Validation CI** : À l'ouverture d'une Pull Request vers `main`, le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) vérifie automatiquement :
-   - L'ensemble des tests unitaires et d'intégration (`python -m unittest discover tests`).
-   - La conformité officielle Home Assistant (`hassfest`).
-   - La validation de structure HACS / Marketplace (`hacs/action`).
+2. **Pull Request & Validation CI** : À l'ouverture ou modification d'une Pull Request vers `main`, le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) vérifie automatiquement :
+   - Le format du titre de la PR selon Conventional Commits (`amannn/action-semantic-pull-request`).
+   - La qualité et la syntaxe du code Python avec le linter officiel [`Ruff`](https://docs.astral.sh/ruff/).
+   - L'ensemble des 330 tests unitaires et d'intégration (`python -m unittest discover tests`).
+   - La conformité officielle Home Assistant ([`hassfest`](https://github.com/home-assistant/actions)).
+   - La validation de structure HACS / Marketplace ([`hacs/action`](https://github.com/hacs/action)).
 3. **Merge sur `main` & Release automatique** :
    Lors de la fusion de la PR sur `main`, le workflow [`.github/workflows/release.yml`](.github/workflows/release.yml) :
    - Calcule automatiquement le nouveau numéro de version selon **Conventional Commits** :
