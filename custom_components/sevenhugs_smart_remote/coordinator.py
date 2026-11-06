@@ -111,6 +111,8 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             remotes = raw_data.get("remotes")
             first_remote = remotes[0] if isinstance(remotes, list) and remotes else {}
 
+            _LOGGER.warning("Télémétrie Sevenhugs /api/settings reçue pour %s: %s", self.name, raw_data)
+
             mac_addr = (
                 raw_data.get("mac_address")
                 or first_remote.get("mac_address")
@@ -122,17 +124,54 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 or self.entry.data.get("firmware_version", "v0.76.4")
             )
 
-            # Batterie (0..100)
-            raw_battery = raw_data.get("battery", self._cached_data.get("battery", 100))
-            try:
-                battery = max(0, min(100, int(raw_battery)))
-            except (TypeError, ValueError):
+            # Recherche multi-sources de la batterie (raw_data, remotes[0], power, status...)
+            raw_battery = None
+            for src in (raw_data, first_remote):
+                if isinstance(src, dict):
+                    for k in (
+                        "battery",
+                        "battery_level",
+                        "batteryLevel",
+                        "battery_percent",
+                        "battery_percentage",
+                        "batteryPercentage",
+                        "level",
+                    ):
+                        if k in src and src[k] is not None:
+                            raw_battery = src[k]
+                            break
+                    if raw_battery is not None:
+                        break
+                    for sub in ("power", "status", "battery_info", "batteryInfo", "device", "state"):
+                        sub_dict = src.get(sub)
+                        if isinstance(sub_dict, dict):
+                            for k in ("battery", "level", "battery_level", "percent", "percentage"):
+                                if k in sub_dict and sub_dict[k] is not None:
+                                    raw_battery = sub_dict[k]
+                                    break
+                        if raw_battery is not None:
+                            break
+                if raw_battery is not None:
+                    break
+
+            if raw_battery is not None:
+                try:
+                    battery = max(0, min(100, int(raw_battery)))
+                except (TypeError, ValueError):
+                    battery = self._cached_data.get("battery", 100)
+            else:
                 battery = self._cached_data.get("battery", 100)
 
-            # Signal Wi-Fi / RSSI
-            raw_wifi = raw_data.get("wifi_signal")
-            if raw_wifi is None:
-                raw_wifi = raw_data.get("rssi")
+            # Recherche multi-sources du Wi-Fi / RSSI
+            raw_wifi = None
+            for src in (raw_data, first_remote):
+                if isinstance(src, dict):
+                    for k in ("wifi_signal", "wifiSignal", "rssi", "wifi_rssi", "wifiRssi"):
+                        if k in src and src[k] is not None:
+                            raw_wifi = src[k]
+                            break
+                    if raw_wifi is not None:
+                        break
             wifi_signal: int | None = None
             if raw_wifi is not None:
                 try:
@@ -140,9 +179,55 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 except (TypeError, ValueError):
                     wifi_signal = None
 
-            # État chargeur / dock
-            charging = bool(raw_data.get("charging", raw_data.get("docked", False)))
-            docked = bool(raw_data.get("docked", charging))
+            # Recherche multi-sources de l'état chargeur / dock
+            raw_charging = None
+            raw_docked = None
+            for src in (raw_data, first_remote):
+                if isinstance(src, dict):
+                    if "charging" in src and src["charging"] is not None:
+                        raw_charging = src["charging"]
+                    elif "is_charging" in src and src["is_charging"] is not None:
+                        raw_charging = src["is_charging"]
+                    elif "isCharging" in src and src["isCharging"] is not None:
+                        raw_charging = src["isCharging"]
+
+                    if "docked" in src and src["docked"] is not None:
+                        raw_docked = src["docked"]
+                    elif "is_docked" in src and src["is_docked"] is not None:
+                        raw_docked = src["is_docked"]
+                    elif "isDocked" in src and src["isDocked"] is not None:
+                        raw_docked = src["isDocked"]
+                    elif "on_dock" in src and src["on_dock"] is not None:
+                        raw_docked = src["on_dock"]
+
+                    for sub in ("power", "status", "battery_info", "batteryInfo", "device", "state"):
+                        sub_dict = src.get(sub)
+                        if isinstance(sub_dict, dict):
+                            if raw_charging is None:
+                                for k in ("charging", "is_charging", "isCharging"):
+                                    if k in sub_dict and sub_dict[k] is not None:
+                                        raw_charging = sub_dict[k]
+                                        break
+                            if raw_docked is None:
+                                for k in ("docked", "is_docked", "isDocked", "on_dock"):
+                                    if k in sub_dict and sub_dict[k] is not None:
+                                        raw_docked = sub_dict[k]
+                                        break
+                    if raw_charging is not None or raw_docked is not None:
+                        break
+
+            if raw_charging is not None and raw_docked is not None:
+                charging = bool(raw_charging)
+                docked = bool(raw_docked)
+            elif raw_charging is not None:
+                charging = bool(raw_charging)
+                docked = bool(raw_data.get("docked", charging))
+            elif raw_docked is not None:
+                docked = bool(raw_docked)
+                charging = bool(raw_docked)
+            else:
+                charging = bool(raw_data.get("charging", raw_data.get("docked", False)))
+                docked = bool(raw_data.get("docked", charging))
 
             # Écran ou mode actif
             active_screen = str(
