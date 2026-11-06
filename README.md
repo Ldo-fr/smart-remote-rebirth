@@ -112,32 +112,6 @@ Pour les développeurs et passionnés souhaitant manipuler directement l'API de 
 
 ---
 
-## 🔄 Workflow de développement & Automatisation des Releases
-
-Le dépôt utilise **GitHub Actions** pour automatiser les tests et la publication des versions :
-
-1. **Développement sur branche** : Créez une branche (`feature/mon-ajout` ou `fix/mon-correctif`).
-2. **Pull Request & Validation CI** : À l'ouverture ou modification d'une Pull Request vers `main`, le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) vérifie automatiquement :
-   - Le format du titre de la PR selon Conventional Commits (`amannn/action-semantic-pull-request`).
-   - La qualité et la syntaxe du code Python avec le linter officiel [`Ruff`](https://docs.astral.sh/ruff/).
-   - L'ensemble des 330 tests unitaires et d'intégration (`python -m unittest discover tests`).
-   - La conformité officielle Home Assistant ([`hassfest`](https://github.com/home-assistant/actions)).
-   - La validation de structure HACS / Marketplace ([`hacs/action`](https://github.com/hacs/action)).
-3. **Merge sur `main` & Release automatique** :
-   Lors de la fusion de la PR sur `main`, le workflow [`.github/workflows/release.yml`](.github/workflows/release.yml) :
-   - Calcule automatiquement le nouveau numéro de version selon **Conventional Commits** :
-     - `fix: ...` ➔ incrémentation **Patch** (`0.1.0` ➔ `0.1.1`)
-     - `feat: ...` ➔ incrémentation **Minor** (`0.1.0` ➔ `0.2.0`)
-     - `feat!: ...` ou `BREAKING CHANGE:` ➔ incrémentation **Major** (`0.X.Y` ➔ `1.0.0`)
-   - Met à jour le numéro de version dans `custom_components/sevenhugs_smart_remote/manifest.json`.
-   - Pose le tag Git `vX.Y.Z`.
-   - Publie la **GitHub Release** avec les notes de version automatiques et l'archive `sevenhugs_smart_remote.zip`.
-   - Marque automatiquement la release en **Pre-release** tant que la version commence par `0.X.Y`.
-4. **Nettoyage automatique des branches** :
-   À la fermeture d'une PR (qu'elle soit acceptée et fusionnée ou fermée/rejetée), le workflow [`.github/workflows/cleanup-branch.yml`](.github/workflows/cleanup-branch.yml) supprime automatiquement la branche source associée pour conserver un dépôt propre.
-
----
-
 ## 🤝 Contribution & Signalement de bugs
 
 Les contributions sont les bienvenues ! N'hésitez pas à :
