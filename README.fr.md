@@ -40,7 +40,7 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 | Fonctionnalité | Statut | Description |
 | :--- | :---: | :--- |
 | **Appairage local graphique (Config Flow)** | ✅ Opérationnel | Découverte automatique mDNS (`_smart_remote._tcp.local.`), saisie du code PIN 8 chiffres dans l'UI Home Assistant, calcul SRP-6a non-bloquant. |
-| **Télémétrie en temps réel (Capteurs)** | ✅ Opérationnel | Capteurs de niveau de batterie (`%`), signal Wi-Fi / RSSI (`dBm`), état sur le dock de charge (`binary_sensor`). |
+| **État & Connectivité (Diagnostic)** | ✅ Opérationnel | Suivi de l'état de connexion (en ligne / en veille / déconnecté) via scrutation locale périodique et récupération des métadonnées matérielles (firmware, MAC, série). |
 | **Contrôle bidirectionnel (Webhooks locaux)** | ✅ Opérationnel | Réception sécurisée (`local_only=True`) des appuis touches sur l'écran tactile et déclenchement instantané des services HA (`light`, `switch`, `scene`, `media_player`, etc.). |
 | **Événements d'automatisation** | ✅ Opérationnel | Émission systématique de l'événement `smart_remote_button_pressed` sur le bus d'événements Home Assistant. |
 | **Gestion de la veille (Deep Sleep)** | ✅ Opérationnel | Tolérance aux micro-coupures Wi-Fi lors de l'endormissement de la télécommande et reconnexion transparente lors de la reprise en main. |

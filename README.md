@@ -40,7 +40,7 @@ Native **Home Assistant** integration (compatible with HACS / Marketplace) and l
 | Feature | Status | Description |
 | :--- | :---: | :--- |
 | **Local Graphical Pairing (Config Flow)** | ✅ Operational | Automatic mDNS discovery (`_smart_remote._tcp.local.`), 8-digit PIN entry in Home Assistant UI, non-blocking asynchronous SRP-6a computation. |
-| **Real-time Telemetry (Sensors)** | ✅ Operational | Battery percentage (`%`), Wi-Fi signal strength / RSSI (`dBm`), charging dock status (`binary_sensor`). |
+| **Status & Connectivity (Diagnostics)** | ✅ Operational | Connection status tracking (online / deep sleep / disconnected) via periodic local polling and hardware metadata inspection (firmware, MAC, serial). |
 | **Bidirectional Control (Local Webhooks)** | ✅ Operational | Secure (`local_only=True`) touch screen button presses reception triggering instantaneous HA services (`light`, `switch`, `scene`, `media_player`, etc.). |
 | **Automation Events** | ✅ Operational | Systematic firing of the `smart_remote_button_pressed` event on the Home Assistant event bus. |
 | **Deep Sleep Management** | ✅ Operational | Tolerance to Wi-Fi sleep cycles when the remote sleeps and seamless keep-alive reconnection when picked up. |
