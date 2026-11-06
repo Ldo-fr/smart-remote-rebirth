@@ -41,13 +41,13 @@ Native **Home Assistant** integration (compatible with HACS / Marketplace) and l
 | :--- | :---: | :--- |
 | **Local Graphical Pairing (Config Flow)** | ✅ Operational | Automatic mDNS discovery (`_smart_remote._tcp.local.`), 8-digit PIN entry in Home Assistant UI, non-blocking asynchronous SRP-6a computation. |
 | **Real-time Telemetry (Sensors)** | ✅ Operational | Battery percentage (`%`), Wi-Fi signal strength / RSSI (`dBm`), charging dock status (`binary_sensor`). |
-| **Bidirectional Control (Local Webhooks)** | ✅ Operational | Secure (`local_only=True`) touch screen button presses reception triggering instantaneous HA services (`light`, `switch`, `scene`). |
+| **Bidirectional Control (Local Webhooks)** | ✅ Operational | Secure (`local_only=True`) touch screen button presses reception triggering instantaneous HA services (`light`, `switch`, `scene`, `media_player`, etc.). |
 | **Automation Events** | ✅ Operational | Systematic firing of the `smart_remote_button_pressed` event on the Home Assistant event bus. |
 | **Deep Sleep Management** | ✅ Operational | Tolerance to Wi-Fi sleep cycles when the remote sleeps and seamless keep-alive reconnection when picked up. |
-| **Entity Selection (Options Flow)** | ✅ Operational | Graphical UI in Home Assistant to select and configure exposed entities and scenes. |
-| **Lua Assistant Injector** | ✅ Operational | Automated button configuration pushed directly to the remote's embedded HTTP server. |
-| **Advanced Media Player Grids (6×12)** | ⏳ In Progress | Dedicated media controls with volume, transport, and directional navigation. |
-| **Complex Scene Synchronization** | ⏳ In Progress | Advanced multi-room ambient scene mapping. |
+| **Entity Management & Cleanup (Options Flow)** | ✅ Operational | Graphical UI in Home Assistant to select exposed entities and permanently delete legacy carousel devices/groups. |
+| **Lua Assistant Injector** | ✅ Operational | Automated webhook button provisioning pushed directly to the remote's embedded HTTP server. |
+| **Maintenance Buttons** | ✅ Operational | Dedicated buttons in Home Assistant to force telemetry sync, ping the remote, and backup configuration dumps. |
+| **Native Rich UI Injection (`sevenhugs.ui.light` / `sevenhugs.ui.media`)** | 💡 Planned Later | Exploratory research track to leverage the firmware's built-in UI templates (dimmer sliders, color wheels, dedicated media controls). |
 
 ---
 

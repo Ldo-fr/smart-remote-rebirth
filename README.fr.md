@@ -41,13 +41,13 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 | :--- | :---: | :--- |
 | **Appairage local graphique (Config Flow)** | ✅ Opérationnel | Découverte automatique mDNS (`_smart_remote._tcp.local.`), saisie du code PIN 8 chiffres dans l'UI Home Assistant, calcul SRP-6a non-bloquant. |
 | **Télémétrie en temps réel (Capteurs)** | ✅ Opérationnel | Capteurs de niveau de batterie (`%`), signal Wi-Fi / RSSI (`dBm`), état sur le dock de charge (`binary_sensor`). |
-| **Contrôle bidirectionnel (Webhooks locaux)** | ✅ Opérationnel | Réception sécurisée (`local_only=True`) des appuis touches sur l'écran tactile et déclenchement instantané des services HA (`light`, `switch`, `scene`). |
+| **Contrôle bidirectionnel (Webhooks locaux)** | ✅ Opérationnel | Réception sécurisée (`local_only=True`) des appuis touches sur l'écran tactile et déclenchement instantané des services HA (`light`, `switch`, `scene`, `media_player`, etc.). |
 | **Événements d'automatisation** | ✅ Opérationnel | Émission systématique de l'événement `smart_remote_button_pressed` sur le bus d'événements Home Assistant. |
 | **Gestion de la veille (Deep Sleep)** | ✅ Opérationnel | Tolérance aux micro-coupures Wi-Fi lors de l'endormissement de la télécommande et reconnexion transparente lors de la reprise en main. |
-| **Sélection d'entités (Options Flow)** | ✅ Opérationnel | Interface graphique pour sélectionner les appareils et scènes exposés à la télécommande. |
-| **Injecteur d'assistants Lua** | ✅ Opérationnel | Automatisation de la configuration des boutons via le serveur embarqué de la télécommande. |
-| **Grilles multimédia avancées (6×12)** | ⏳ En cours | Interface dédiée avec contrôle du volume, transport et navigation pour les `media_player`. |
-| **Synchronisation de scènes complexes** | ⏳ En cours | Mapping avancé des scènes d'ambiance multi-pièces. |
+| **Gestion des entités & Nettoyage (Options Flow)** | ✅ Opérationnel | Interface graphique pour sélectionner les entités HA à injecter et supprimer définitivement les anciens appareils/groupes de la télécommande. |
+| **Injecteur d'assistants Lua** | ✅ Opérationnel | Automatisation de la configuration des boutons webhooks via le serveur HTTP embarqué de la télécommande. |
+| **Boutons de maintenance** | ✅ Opérationnel | Entités boutons dans Home Assistant pour forcer la synchronisation, tester la connectivité (ping) et sauvegarder la configuration locale. |
+| **Injection d'interfaces riches natives (`sevenhugs.ui.light` / `sevenhugs.ui.media`)** | 💡 Prévu plus tard | Piste exploratoire pour réutiliser les templates graphiques d'origine (variateurs de lumière, sliders, contrôles multimédia dédiés). |
 
 ---
 
