@@ -80,7 +80,7 @@ jobs:
               patch += 1
 
           new_version = f"{major}.{minor}.{patch}"
-          is_prerelease = "true" if major == 0 else "false"
+          is_prerelease = "true" if any(suffix in all_text for suffix in ["-alpha", "-beta", "-rc", "prerelease"]) else "false"
 
           print(f"Version actuelle : {current_version}")
           print(f"Nouvelle version : {new_version} (prerelease={is_prerelease})")
@@ -119,14 +119,18 @@ jobs:
 
       - name: Publish GitHub Release
         run: |
-          PRERELEASE_FLAG=""
+          FLAGS="--latest"
           if [ "${{ steps.versioning.outputs.is_prerelease }}" = "true" ]; then
-            PRERELEASE_FLAG="--prerelease"
+            FLAGS="--prerelease"
           fi
           gh release create "${{ steps.versioning.outputs.tag_name }}" sevenhugs_smart_remote.zip \
             --title "Release ${{ steps.versioning.outputs.tag_name }}" \
             --generate-notes \
-            $PRERELEASE_FLAG
+            $FLAGS
+
+          # Convertir les releases antérieures en versions stables pour que HACS les indexe correctement
+          gh release edit v0.2.5 --prerelease=false || true
+          gh release edit v0.2.4 --prerelease=false || true
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
