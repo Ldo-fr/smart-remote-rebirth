@@ -96,21 +96,21 @@ Once the integration is installed and Home Assistant has restarted:
 
 The repository includes a standalone demonstration script requiring no external setup:
 ```bash
-python3 poc_quickstart.py
+python3 tools/poc_quickstart.py
 ```
 This script boots a mock Sevenhugs server, initializes the Home Assistant component, reads battery telemetry, and simulates a touchscreen button press that turns on a virtual Home Assistant light in under one second.
 
-*(You can also test directly with a physical remote on your network: `python3 poc_quickstart.py --ip 192.168.1.XX`).*
+*(You can also test directly with a physical remote on your network: `python3 tools/poc_quickstart.py --ip 192.168.1.XX`).*
 
 ---
 
 ## 🛠️ Historical CLI & Reverse-Engineering Tools
 
-For developers and enthusiasts wishing to interact directly with the remote's raw API outside Home Assistant, the repository preserves the original exploration tools:
+For developers and enthusiasts wishing to interact directly with the remote's raw API outside Home Assistant, the repository preserves the original exploration tools in the `tools/` directory:
 
-- [**`pair_and_verify.py`**](pair_and_verify.py): Standalone CLI script for initial pairing and cryptographic handshake.
-- [**`pair_verify.py`**](pair_verify.py): Quick encrypted session check and state dumps extractor.
-- [**`sevenhugs_bridge.py`**](sevenhugs_bridge.py): Local Web gateway and configuration studio.
+- [**`tools/pair_and_verify.py`**](tools/pair_and_verify.py): Standalone CLI script for initial pairing and cryptographic handshake.
+- [**`tools/pair_verify.py`**](tools/pair_verify.py): Quick encrypted session check and state dumps extractor.
+- [**`tools/sevenhugs_bridge.py`**](tools/sevenhugs_bridge.py): Local Web gateway and configuration studio.
 - [**`docs/PROTOCOL_AND_API.md`**](docs/PROTOCOL_AND_API.md): Full documented protocol specification (SRP-6a 3072-bit, Ed25519, X25519, ChaCha20-Poly1305, `/api/*` endpoints, and `/rom/webapp/resources/setup.lua` assistants).
 - [**`docs/HOME_ASSISTANT_INTEGRATION_PLAN.md`**](docs/HOME_ASSISTANT_INTEGRATION_PLAN.md): Technical architecture and roadmap document.
 

@@ -14,8 +14,13 @@ import sys
 import os
 from typing import Any
 
-# Ajout du composant au path python
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+PYLIB_DIR = os.path.join(PROJECT_ROOT, ".pylib")
+if os.path.isdir(PYLIB_DIR) and PYLIB_DIR not in sys.path:
+    sys.path.insert(0, PYLIB_DIR)
 
 from tests.ha_mock import HomeAssistant, ConfigEntry
 from custom_components.sevenhugs_smart_remote.const import (

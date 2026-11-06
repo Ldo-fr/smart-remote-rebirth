@@ -16,16 +16,21 @@ import os
 import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PYLIB_DIR = os.path.join(BASE_DIR, ".pylib")
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+PYLIB_DIR = os.path.join(PROJECT_ROOT, ".pylib")
 if os.path.isdir(PYLIB_DIR) and PYLIB_DIR not in sys.path:
     sys.path.insert(0, PYLIB_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-DEFAULT_KEYS_FILE = os.path.join(BASE_DIR, "smartremote_keys.json")
+DEFAULT_KEYS_FILE = os.path.join(PROJECT_ROOT, "smartremote_keys.json")
+if not os.path.exists(DEFAULT_KEYS_FILE) and os.path.exists(os.path.join(BASE_DIR, "smartremote_keys.json")):
+    DEFAULT_KEYS_FILE = os.path.join(BASE_DIR, "smartremote_keys.json")
 
 
 def encode_tlv(items):

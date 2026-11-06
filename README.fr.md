@@ -96,21 +96,21 @@ Une fois l'intégration installée et Home Assistant redémarré :
 
 Le dépôt inclut un script de démonstration autonome ne nécessitant aucune dépendance complexe :
 ```bash
-python3 poc_quickstart.py
+python3 tools/poc_quickstart.py
 ```
 Ce script démarre un serveur Sevenhugs virtuel, initialise le composant Home Assistant, lit la télémétrie de batterie et simule un appui tactile avec allumage d'une ampoule HA en moins d'une seconde.
 
-*(Vous pouvez également tester directement avec une télécommande physique connectée : `python3 poc_quickstart.py --ip 192.168.1.XX`).*
+*(Vous pouvez également tester directement avec une télécommande physique connectée : `python3 tools/poc_quickstart.py --ip 192.168.1.XX`).*
 
 ---
 
 ## 🛠️ Outils historiques en ligne de commande (CLI & Rétro-ingénierie)
 
-Pour les développeurs et passionnés souhaitant manipuler directement l'API de la télécommande hors Home Assistant, le dépôt conserve les scripts d'exploration d'origine :
+Pour les développeurs et passionnés souhaitant manipuler directement l'API de la télécommande hors Home Assistant, le dépôt conserve les scripts d'exploration d'origine dans le dossier `tools/` :
 
-- [**`pair_and_verify.py`**](pair_and_verify.py) : Script autonome de jumelage initial en ligne de commande.
-- [**`pair_verify.py`**](pair_verify.py) : Test rapide de session chiffrée et extraction des dumps d'état.
-- [**`sevenhugs_bridge.py`**](sevenhugs_bridge.py) : Passerelle et studio Web local de configuration.
+- [**`tools/pair_and_verify.py`**](tools/pair_and_verify.py) : Script autonome de jumelage initial en ligne de commande.
+- [**`tools/pair_verify.py`**](tools/pair_verify.py) : Test rapide de session chiffrée et extraction des dumps d'état.
+- [**`tools/sevenhugs_bridge.py`**](tools/sevenhugs_bridge.py) : Passerelle et studio Web local de configuration.
 - [**`docs/PROTOCOL_AND_API.md`**](docs/PROTOCOL_AND_API.md) : Spécification complète et documentée du protocole (SRP-6a 3072-bit, Ed25519, X25519, ChaCha20-Poly1305, endpoints `/api/*` et assistants Lua `/rom/webapp/resources/setup.lua`).
 - [**`docs/HOME_ASSISTANT_INTEGRATION_PLAN.md`**](docs/HOME_ASSISTANT_INTEGRATION_PLAN.md) : Plan d'architecture technique et feuille de route détaillée du composant Home Assistant.
 
