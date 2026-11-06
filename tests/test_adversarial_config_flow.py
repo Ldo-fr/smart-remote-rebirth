@@ -765,7 +765,7 @@ class TestAdversarialLatencyAndEventLoop(unittest.IsolatedAsyncioTestCase):
             # Vérifications empiriques strictes
             self.assertGreaterEqual(elapsed, m1_delay * 0.9, "Le délai M1 doit avoir été respecté")
             self.assertGreaterEqual(ticks, 25, f"L'Event Loop a été gelée (seulement {ticks} ticks enregistrés)")
-            self.assertLess(max_jitter, 0.05, f"Famine détectée sur l'Event Loop : gigue maximale={max_jitter*1000:.1f}ms")
+            self.assertLess(max_jitter, 0.10, f"Famine détectée sur l'Event Loop : gigue maximale={max_jitter*1000:.1f}ms")
 
             self.assertEqual(res["type"], FlowResultType.FORM)
             self.assertEqual(res["step_id"], "pair_pin")

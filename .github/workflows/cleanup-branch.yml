@@ -1,0 +1,52 @@
+name: Cleanup PR Branch
+
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Delete Closed Branch
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Head Branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.payload.pull_request.head.ref;
+            const defaultBranch = context.payload.repository.default_branch || 'main';
+
+            if (!branch) {
+              console.log('No branch name found in pull request payload.');
+              return;
+            }
+
+            if (branch === defaultBranch || branch === 'main' || branch === 'master') {
+              console.log(`Refusing to delete default/protected branch: ${branch}`);
+              return;
+            }
+
+            const isMerged = context.payload.pull_request.merged;
+            console.log(`Pull Request #${context.payload.pull_request.number} was closed (merged: ${isMerged}).`);
+            console.log(`Attempting to delete head branch '${branch}'...`);
+
+            try {
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branch}`,
+              });
+              console.log(`Successfully deleted branch '${branch}'.`);
+            } catch (error) {
+              if (error.status === 404 || error.status === 422) {
+                console.log(`Branch '${branch}' does not exist or was already deleted.`);
+              } else {
+                console.error(`Error deleting branch '${branch}':`, error);
+                throw error;
+              }
+            }
