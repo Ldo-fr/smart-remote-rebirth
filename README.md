@@ -1,125 +1,129 @@
 # Sevenhugs Smart Remote Rebirth (`SR1A`)
 
+**🇬🇧 English** | [🇫🇷 Français](README.fr.md)
+
+---
+
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom%20Repository-orange.svg)](https://hacs.xyz/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1%2B%20%7C%202026.11%2B-blue.svg)](https://www.home-assistant.io/)
 [![Version](https://img.shields.io/badge/version-0.1.0--alpha-yellow.svg)](https://github.com/Ldo-fr/smart-remote-rebirth/releases)
 [![Build & Tests](https://img.shields.io/badge/tests-330%20passed%20(100%25)-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte à outils locale pour la télécommande universelle **Sevenhugs Smart Remote** (modèle `SR1A`, FCC ID `2AEVC-SR1A`).
+Native **Home Assistant** integration (compatible with HACS / Marketplace) and local reverse-engineering toolkit for the **Sevenhugs Smart Remote** universal remote control (model `SR1A`, FCC ID `2AEVC-SR1A`).
 
 ---
 
 > [!WARNING]
-> ### ⚠️ PROJET EN VERSION DE TRAVAIL (ALPHA / EXPÉRIMENTAL)
-> **Ce logiciel est une version de travail préliminaire fournie à des fins de test et de recherche communautaire.**
-> - **Non destiné à la production :** Des instabilités, déconnexions ou changements de structure peuvent survenir au fil des mises à jour. Ne comptez pas sur cette intégration pour des systèmes d'alarme ou de sécurité critiques.
-> - **Rétro-ingénierie indépendante :** Ce projet n'est ni affilié, ni soutenu par la société Sevenhugs (dont les serveurs cloud ont été définitivement arrêtés en mai 2022).
-> - **Aucun cloud requis :** Toutes les communications s'effectuent à **100 % en local** sur votre réseau Wi-Fi (chiffrement SRP-6a, Ed25519, ChaCha20-Poly1305).
+> ### ⚠️ WORK-IN-PROGRESS PROJECT (ALPHA / EXPERIMENTAL)
+> **This software is a preliminary work-in-progress provided for testing and community research purposes.**
+> - **Not intended for production:** Instabilities, temporary disconnects, or structure adjustments may occur across updates. Do not rely on this integration for critical alarm or security systems.
+> - **Independent reverse-engineering:** This project is neither affiliated with nor endorsed by Sevenhugs Inc. / SAS (whose cloud servers were permanently decommissioned in May 2022).
+> - **100% local, no cloud required:** All communications take place strictly **locally over your Wi-Fi network** (SRP-6a, Ed25519, ChaCha20-Poly1305 encryption).
 
 > [!NOTE]
-> ### 💡 Démarche du projet & Clause de non-affiliation
-> **Je n'ai absolument rien à voir avec l'ancienne société Sevenhugs (Sevenhugs SAS) ou ses ayants droit.**
-> Ce projet est une démarche personnelle, indépendante et bénévole de passionné. La Sevenhugs Smart Remote est un appareil matériel d'excellente facture qui s'est retrouvé prématurément privé de configuration suite à l'arrêt définitif des serveurs cloud en mai 2022.
-> Mon unique objectif est de **redonner vie à un produit qui n'est plus supporté**, de sauver ces télécommandes de l'obsolescence programmée et d'éviter qu'elles ne finissent comme déchets électroniques au fond d'un tiroir, en leur offrant une seconde vie moderne et 100 % locale grâce à Home Assistant.
+> ### 💡 Project Motivation & Non-Affiliation Disclaimer
+> **I have absolutely no affiliation with the former Sevenhugs company (Sevenhugs SAS) or its successors.**
+> This project is an independent, non-profit personal initiative driven by hobbyist passion. The Sevenhugs Smart Remote is a beautifully engineered piece of hardware that became prematurely unusable following the permanent shutdown of its original cloud servers in May 2022.
+> My sole purpose is to **bring a discontinued product back to life**, save these remotes from planned obsolescence and prevent them from ending up as electronic waste in drawers, giving them a modern, 100% local second life powered by Home Assistant.
 
 ---
 
-## 📊 État d'avancement des fonctionnalités
+## 📊 Feature Status & Roadmap
 
-| Fonctionnalité | Statut | Description |
+| Feature | Status | Description |
 | :--- | :---: | :--- |
-| **Appairage local graphique (Config Flow)** | ✅ Opérationnel | Découverte automatique mDNS (`_smart_remote._tcp.local.`), saisie du code PIN 8 chiffres dans l'UI Home Assistant, calcul SRP-6a non-bloquant. |
-| **Télémétrie en temps réel (Capteurs)** | ✅ Opérationnel | Capteurs de niveau de batterie (`%`), signal Wi-Fi / RSSI (`dBm`), état sur le dock de charge (`binary_sensor`). |
-| **Contrôle bidirectionnel (Webhooks locaux)** | ✅ Opérationnel | Réception sécurisée (`local_only=True`) des appuis touches sur l'écran tactile et déclenchement instantané des services HA (`light`, `switch`, `scene`). |
-| **Événements d'automatisation** | ✅ Opérationnel | Émission systématique de l'événement `sevenhugs_button_pressed` sur le bus d'événements Home Assistant. |
-| **Gestion de la veille (Deep Sleep)** | ✅ Opérationnel | Tolérance aux micro-coupures Wi-Fi lors de l'endormissement de la télécommande et reconnexion transparente lors de la reprise en main. |
-| **Sélection d'entités (Options Flow)** | ✅ Opérationnel | Interface graphique pour sélectionner les appareils et scènes exposés à la télécommande. |
-| **Injecteur d'assistants Lua** | ✅ Opérationnel | Automatisation de la configuration des boutons via le serveur embarqué de la télécommande. |
-| **Grilles multimédia avancées (6×12)** | ⏳ En cours | Interface dédiée avec contrôle du volume, transport et navigation pour les `media_player`. |
-| **Synchronisation de scènes complexes** | ⏳ En cours | Mapping avancé des scènes d'ambiance multi-pièces. |
+| **Local Graphical Pairing (Config Flow)** | ✅ Operational | Automatic mDNS discovery (`_smart_remote._tcp.local.`), 8-digit PIN entry in Home Assistant UI, non-blocking asynchronous SRP-6a computation. |
+| **Real-time Telemetry (Sensors)** | ✅ Operational | Battery percentage (`%`), Wi-Fi signal strength / RSSI (`dBm`), charging dock status (`binary_sensor`). |
+| **Bidirectional Control (Local Webhooks)** | ✅ Operational | Secure (`local_only=True`) touch screen button presses reception triggering instantaneous HA services (`light`, `switch`, `scene`). |
+| **Automation Events** | ✅ Operational | Systematic firing of the `sevenhugs_button_pressed` event on the Home Assistant event bus. |
+| **Deep Sleep Management** | ✅ Operational | Tolerance to Wi-Fi sleep cycles when the remote sleeps and seamless keep-alive reconnection when picked up. |
+| **Entity Selection (Options Flow)** | ✅ Operational | Graphical UI in Home Assistant to select and configure exposed entities and scenes. |
+| **Lua Assistant Injector** | ✅ Operational | Automated button configuration pushed directly to the remote's embedded HTTP server. |
+| **Advanced Media Player Grids (6×12)** | ⏳ In Progress | Dedicated media controls with volume, transport, and directional navigation. |
+| **Complex Scene Synchronization** | ⏳ In Progress | Advanced multi-room ambient scene mapping. |
 
 ---
 
-## 🚀 Installation dans Home Assistant
+## 🚀 Installation in Home Assistant
 
-### Méthode 1 : Via HACS / Marketplace (Recommandé)
+### Method 1: Via HACS / Marketplace (Recommended)
 
-1. Assurez-vous que **HACS** (ou le nouveau menu **Marketplace** de Home Assistant 2026.11+) est installé.
-2. Ouvrez **HACS / Marketplace** dans la barre latérale de Home Assistant.
-3. Cliquez sur le menu en haut à droite (trois petits points) > **Dépôts personnalisés** (*Custom repositories*).
-4. Renseignez :
-   - **Dépôt** : `https://github.com/Ldo-fr/smart-remote-rebirth`
-   - **Type** : `Intégration`
-5. Cliquez sur **Ajouter**, puis recherchez **Sevenhugs Smart Remote**.
-6. Cliquez sur **Télécharger**, puis **redémarrez Home Assistant**.
+1. Ensure **HACS** (or the new **Marketplace** menu in Home Assistant 2026.11+) is installed.
+2. Open **HACS / Marketplace** in the Home Assistant sidebar.
+3. Click the top-right menu (three dots) > **Custom repositories**.
+4. Fill in:
+   - **Repository**: `https://github.com/Ldo-fr/smart-remote-rebirth`
+   - **Type**: `Integration`
+5. Click **Add**, then search for **Sevenhugs Smart Remote**.
+6. Click **Download**, then **restart Home Assistant**.
 
 ---
 
-### Méthode 2 : Installation manuelle
+### Method 2: Manual Installation
 
-1. Téléchargez ou clonez ce dépôt :
+1. Download or clone this repository:
    ```bash
    git clone https://github.com/Ldo-fr/smart-remote-rebirth.git
    ```
-2. Copiez le dossier `custom_components/sevenhugs_smart_remote` dans le répertoire `config/custom_components/` de votre Home Assistant :
+2. Copy the `custom_components/sevenhugs_smart_remote` folder into your Home Assistant's `config/custom_components/` directory:
    ```bash
-   cp -r smart-remote-rebirth/custom_components/sevenhugs_smart_remote /chemin/vers/votre/config/custom_components/
+   cp -r smart-remote-rebirth/custom_components/sevenhugs_smart_remote /path/to/your/config/custom_components/
    ```
-3. **Redémarrez Home Assistant**.
+3. **Restart Home Assistant**.
 
 ---
 
-## ⚙️ Configuration & Appairage
+## ⚙️ Configuration & Pairing
 
-Une fois l'intégration installée et Home Assistant redémarré :
+Once the integration is installed and Home Assistant has restarted:
 
-1. Allez dans **Paramètres > Appareils et Services > Ajouter une intégration**.
-2. Recherchez **Sevenhugs Smart Remote**.
-3. **Appairage assisté** :
-   - Si votre télécommande est allumée et connectée au même Wi-Fi, elle est **détectée automatiquement** via mDNS. Sinon, entrez simplement son adresse IP locale.
-   - Cliquez sur **Suivant**. L'intégration initialise le calcul d'empreinte matérielle SRP-6a (~16 secondes).
-   - Un **code PIN à 8 chiffres** (`XXX-XX-XXX`) s'affiche sur l'écran AMOLED de la Smart Remote.
-   - Saisissez ce code dans la fenêtre Home Assistant et validez.
-4. **C'est prêt !** Votre télécommande apparaît comme un appareil avec ses entités (niveau de batterie, Wi-Fi, chargeur, et boutons d'action).
+1. Navigate to **Settings > Devices & Services > Add Integration**.
+2. Search for **Sevenhugs Smart Remote**.
+3. **Guided Pairing**:
+   - If your remote is powered on and connected to the same Wi-Fi network, it will be **discovered automatically** via mDNS. Otherwise, manually enter its local IP address.
+   - Click **Next**. The integration initiates the SRP-6a hardware calculation (~16 seconds).
+   - An **8-digit PIN code** (`XXX-XX-XXX`) will appear on the AMOLED screen of your Smart Remote.
+   - Enter this PIN in Home Assistant and validate.
+4. **All set!** Your remote appears as a device with all its entities (battery, Wi-Fi, charging dock, diagnostic sensors, and action buttons).
 
 > [!TIP]
-> Une fois appairée, les clés cryptographiques de session sont conservées de manière sécurisée dans Home Assistant. Vous n'aurez **plus jamais besoin de ressaisir de code PIN**, même après un redémarrage de votre serveur ou de la télécommande.
+> Once paired, cryptographic session keys are securely stored in Home Assistant. You will **never need to re-enter a PIN code**, even after restarting Home Assistant or rebooting the remote control.
 
 ---
 
-## 🧪 Tester l'intégration localement (POC interactif)
+## 🧪 Testing the Integration Locally (Interactive Quickstart POC)
 
-Le dépôt inclut un script de démonstration autonome ne nécessitant aucune dépendance complexe :
+The repository includes a standalone demonstration script requiring no external setup:
 ```bash
 python3 poc_quickstart.py
 ```
-Ce script démarre un serveur Sevenhugs virtuel, initialise le composant Home Assistant, lit la télémétrie de batterie et simule un appui tactile avec allumage d'une ampoule HA en moins d'une seconde.
+This script boots a mock Sevenhugs server, initializes the Home Assistant component, reads battery telemetry, and simulates a touchscreen button press that turns on a virtual Home Assistant light in under one second.
 
-*(Vous pouvez également tester directement avec une télécommande physique connectée : `python3 poc_quickstart.py --ip 192.168.1.XX`).*
-
----
-
-## 🛠️ Outils historiques en ligne de commande (CLI & Rétro-ingénierie)
-
-Pour les développeurs et passionnés souhaitant manipuler directement l'API de la télécommande hors Home Assistant, le dépôt conserve les scripts d'exploration d'origine :
-
-- [**`pair_and_verify.py`**](pair_and_verify.py) : Script autonome de jumelage initial en ligne de commande.
-- [**`pair_verify.py`**](pair_verify.py) : Test rapide de session chiffrée et extraction des dumps d'état.
-- [**`sevenhugs_bridge.py`**](sevenhugs_bridge.py) : Passerelle et studio Web local de configuration.
-- [**`docs/PROTOCOL_AND_API.md`**](docs/PROTOCOL_AND_API.md) : Spécification complète et documentée du protocole (SRP-6a 3072-bit, Ed25519, X25519, ChaCha20-Poly1305, endpoints `/api/*` et assistants Lua `/rom/webapp/resources/setup.lua`).
-- [**`docs/HOME_ASSISTANT_INTEGRATION_PLAN.md`**](docs/HOME_ASSISTANT_INTEGRATION_PLAN.md) : Plan d'architecture technique et feuille de route détaillée du composant Home Assistant.
+*(You can also test directly with a physical remote on your network: `python3 poc_quickstart.py --ip 192.168.1.XX`).*
 
 ---
 
-## 🤝 Contribution & Signalement de bugs
+## 🛠️ Historical CLI & Reverse-Engineering Tools
 
-Les contributions sont les bienvenues ! N'hésitez pas à :
-1. Ouvrir une **Issue** pour signaler un comportement anormal ou suggérer une amélioration.
-2. Soumettre une **Pull Request** pour enrichir le support des entités ou affiner la documentation.
+For developers and enthusiasts wishing to interact directly with the remote's raw API outside Home Assistant, the repository preserves the original exploration tools:
+
+- [**`pair_and_verify.py`**](pair_and_verify.py): Standalone CLI script for initial pairing and cryptographic handshake.
+- [**`pair_verify.py`**](pair_verify.py): Quick encrypted session check and state dumps extractor.
+- [**`sevenhugs_bridge.py`**](sevenhugs_bridge.py): Local Web gateway and configuration studio.
+- [**`docs/PROTOCOL_AND_API.md`**](docs/PROTOCOL_AND_API.md): Full documented protocol specification (SRP-6a 3072-bit, Ed25519, X25519, ChaCha20-Poly1305, `/api/*` endpoints, and `/rom/webapp/resources/setup.lua` assistants).
+- [**`docs/HOME_ASSISTANT_INTEGRATION_PLAN.md`**](docs/HOME_ASSISTANT_INTEGRATION_PLAN.md): Technical architecture and roadmap document.
 
 ---
 
-## 📄 Licence
+## 🤝 Contributing & Bug Reports
 
-Ce projet est distribué sous licence libre **MIT**. Consultez le fichier [LICENSE](LICENSE) pour plus d'informations.
+Contributions are warmly welcomed! Feel free to:
+1. Open an **Issue** to report unexpected behavior, disconnects, or suggest an improvement.
+2. Submit a **Pull Request** to expand entity support or enhance the documentation.
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
