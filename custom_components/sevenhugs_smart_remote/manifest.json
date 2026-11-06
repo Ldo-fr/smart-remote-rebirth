@@ -1,14 +1,18 @@
 {
   "domain": "sevenhugs_smart_remote",
   "name": "Sevenhugs Smart Remote",
-  "codeowners": ["@LudovicLaly"],
+  "codeowners": [
+    "@LudovicLaly"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/LudovicLaly/smart-remote-rebirth",
   "issue_tracker": "https://github.com/LudovicLaly/smart-remote-rebirth/issues",
-  "dependencies": ["webhook"],
+  "dependencies": [
+    "webhook"
+  ],
   "integration_type": "hub",
   "iot_class": "local_polling",
-  "version": "0.1.0-alpha",
+  "version": "0.2.0",
   "requirements": [
     "cryptography>=41.0.0"
   ],
