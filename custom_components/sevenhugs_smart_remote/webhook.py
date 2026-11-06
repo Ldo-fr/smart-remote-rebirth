@@ -8,6 +8,7 @@ sur le bus système et le réveil optimiste du coordinateur de données.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 import inspect
 import logging
 from typing import Any
@@ -127,7 +128,17 @@ def async_get_webhook_id(entry_or_id: ConfigEntry | str) -> str:
 def async_generate_webhook_url(hass: HomeAssistant, entry_or_id: ConfigEntry | str) -> str:
     """Génère l'URL complète d'accès local au webhook pour la télécommande."""
     webhook_id = async_get_webhook_id(entry_or_id)
-    return webhook.async_generate_url(hass, webhook_id)
+    try:
+        return webhook.async_generate_url(
+            hass,
+            webhook_id,
+            allow_internal=True,
+            allow_external=True,
+            allow_ip=True,
+            prefer_external=False,
+        )
+    except TypeError:
+        return webhook.async_generate_url(hass, webhook_id)
 
 
 # ============================================================================
@@ -151,7 +162,7 @@ def async_register_webhook(hass: HomeAssistant, entry: ConfigEntry) -> str:
 
     title = getattr(entry, "title", None) or (
         entry.data.get(CONF_SERIAL_NUMBER, entry.entry_id)
-        if hasattr(entry, "data") and isinstance(entry.data, dict)
+        if hasattr(entry, "data") and isinstance(entry.data, Mapping)
         else entry.entry_id
     )
     webhook_name = f"Sevenhugs Smart Remote ({title})"
@@ -304,7 +315,7 @@ async def async_handle_webhook(
 
     if hasattr(hass, "config_entries") and hasattr(hass.config_entries, "async_get_entry"):
         entry = hass.config_entries.async_get_entry(entry_id)
-        if entry and hasattr(entry, "data") and isinstance(entry.data, dict):
+        if entry and hasattr(entry, "data") and isinstance(entry.data, Mapping):
             remote_id = remote_id or entry.data.get(CONF_REMOTE_ID, "")
             serial_number = serial_number or entry.data.get(CONF_SERIAL_NUMBER, "")
 

@@ -478,22 +478,23 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
         """Extrait la liste des appareils/groupes présents dans le carrousel de la télécommande."""
         hass = getattr(self, "hass", None)
         entry = self._entry
-        if not hass or not entry or not hasattr(hass, "data") or not isinstance(hass.data, dict):
+        if not hass or not entry or not hasattr(hass, "data") or not isinstance(hass.data, Mapping):
             return []
 
-        runtime_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        domain_data = hass.data.get(DOMAIN, {})
+        runtime_data = domain_data.get(entry.entry_id) if isinstance(domain_data, Mapping) else None
         if not runtime_data:
             return []
 
         coordinator = getattr(runtime_data, "coordinator", None) or (
-            runtime_data.get("coordinator") if isinstance(runtime_data, dict) else None
+            runtime_data.get("coordinator") if isinstance(runtime_data, Mapping) else None
         )
         coord_data = getattr(coordinator, "data", None) if coordinator else None
-        if not isinstance(coord_data, dict):
+        if not isinstance(coord_data, Mapping):
             return []
 
         raw_settings = coord_data.get("raw_settings", {})
-        if not isinstance(raw_settings, dict):
+        if not isinstance(raw_settings, Mapping):
             return []
 
         carousel = raw_settings.get("carousel_order", [])
@@ -502,7 +503,7 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
 
         select_options: list[dict[str, str]] = []
         for item in carousel:
-            if not isinstance(item, dict) or not item.get("id"):
+            if not isinstance(item, Mapping) or not item.get("id"):
                 continue
             item_id = str(item["id"])
             name = str(item.get("name") or item_id)
@@ -520,7 +521,7 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
 
         entry = self._entry
         raw_opts = getattr(entry, "options", None) if entry is not None else None
-        options = dict(raw_opts) if isinstance(raw_opts, dict) else {}
+        options = dict(raw_opts) if isinstance(raw_opts, Mapping) else {}
 
         default_entities = options.get(CONF_ENTITIES, DEFAULT_ENTITIES)
         if default_entities is None:

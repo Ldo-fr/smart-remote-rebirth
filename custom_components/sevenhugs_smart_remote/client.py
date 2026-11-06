@@ -638,6 +638,7 @@ class AsyncSmartRemoteClient:
             raise SevenhugsConnectionError(f"Impossible d'accéder à l'URL d'assistant {setup_url}: {err}") from err
 
         async def post_lua(payload_data: dict) -> tuple[int, dict]:
+            nonlocal cookie_sid
             req_headers = {
                 "Content-Type": "application/json",
             }
@@ -647,6 +648,10 @@ class AsyncSmartRemoteClient:
             async with self._session.post(
                 setup_url, data=body_bytes, headers=req_headers, timeout=timeout_param
             ) as resp:
+                if "Set-Cookie" in resp.headers:
+                    cookie_sid = resp.headers["Set-Cookie"].split(";")[0]
+                elif hasattr(resp, "cookies") and "7HUGS_SID" in resp.cookies:
+                    cookie_sid = f"7HUGS_SID={resp.cookies['7HUGS_SID'].value}"
                 resp_raw = await resp.read()
                 try:
                     return resp.status, json.loads(resp_raw.decode("utf-8"))

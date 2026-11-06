@@ -1008,6 +1008,23 @@ async def test_options_flow_delete_remote_devices() -> None:
     assert delete_calls[0][1] == "/api/devices"
     assert delete_calls[1][1] == "/api/components-groups"
 
+    # Test de compatibilité MappingProxyType (Home Assistant Core 2024+ / 2026+)
+    from types import MappingProxyType
+    from custom_components.sevenhugs_smart_remote.lua_injector import SevenhugsLuaInjector
+
+    entry.data = MappingProxyType({CONF_REMOTE_ID: "5726", CONF_SERIAL_NUMBER: "sn_mp"})  # type: ignore[assignment]
+    entry.options = MappingProxyType({  # type: ignore[assignment]
+        CONF_ENTITIES: ["light.salon", "script.cinema"],
+        CONF_DELETE_DEVICES: ["sevenhugs.control.hue:spot1"],
+    })
+    injector = SevenhugsLuaInjector(hass, entry, client)
+    client.async_push_webhooks = AsyncMock(return_value=True)
+    sync_ok = await injector.async_sync_entities()
+    assert sync_ok is True
+    client.async_push_webhooks.assert_awaited_once()
+    pushed_triggers = client.async_push_webhooks.call_args[0][0]
+    assert len(pushed_triggers) == 2
+
 
 # ============================================================================
 # EXÉCUTION UNITTEST & PYTEST DUAL-COMPATIBLE

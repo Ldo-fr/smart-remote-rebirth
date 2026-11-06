@@ -14,7 +14,7 @@ import asyncio
 import inspect
 import json
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 try:
@@ -138,7 +138,7 @@ class SevenhugsLuaInjector:
             getattr(self.entry, "title", None)
             or (
                 self.entry.data.get(CONF_SERIAL_NUMBER)
-                if hasattr(self.entry, "data") and isinstance(self.entry.data, dict)
+                if hasattr(self.entry, "data") and isinstance(self.entry.data, Mapping)
                 else None
             )
             or getattr(self.entry, "entry_id", "sevenhugs_smart_remote")
@@ -148,12 +148,12 @@ class SevenhugsLuaInjector:
     def remote_id(self) -> str:
         """Résout l'identifiant matériel de la télécommande pour le payload."""
         # 1. Vérification dans client.keys
-        if hasattr(self.client, "keys") and isinstance(self.client.keys, dict):
+        if hasattr(self.client, "keys") and isinstance(self.client.keys, Mapping):
             val = self.client.keys.get(CONF_REMOTE_ID)
             if isinstance(val, str) and val:
                 return val
         # 2. Vérification dans client._keys
-        if hasattr(self.client, "_keys") and isinstance(self.client._keys, dict):
+        if hasattr(self.client, "_keys") and isinstance(self.client._keys, Mapping):
             val = self.client._keys.get(CONF_REMOTE_ID)
             if isinstance(val, str) and val:
                 return val
@@ -163,7 +163,7 @@ class SevenhugsLuaInjector:
             if isinstance(val, str) and val:
                 return val
         # 4. Données de ConfigEntry
-        if hasattr(self.entry, "data") and isinstance(self.entry.data, dict):
+        if hasattr(self.entry, "data") and isinstance(self.entry.data, Mapping):
             val = self.entry.data.get(CONF_REMOTE_ID) or self.entry.data.get(CONF_SERIAL_NUMBER)
             if isinstance(val, str) and val:
                 return str(val)
@@ -219,7 +219,7 @@ class SevenhugsLuaInjector:
         if hasattr(self.hass, "states") and hasattr(self.hass.states, "get"):
             try:
                 state = self.hass.states.get(entity_id) or self.hass.states.get(normalized_entity_id)
-                if state is not None and hasattr(state, "attributes") and isinstance(state.attributes, dict):
+                if state is not None and hasattr(state, "attributes") and isinstance(state.attributes, Mapping):
                     raw_fn = state.attributes.get("friendly_name")
                     if isinstance(raw_fn, str) and raw_fn.strip():
                         friendly_name = raw_fn.strip()
@@ -258,7 +258,7 @@ class SevenhugsLuaInjector:
         if not entity_ids:
             return _AwaitableList()
 
-        if not isinstance(entity_ids, (list, tuple, set)) or isinstance(entity_ids, (str, bytes, dict)):
+        if not isinstance(entity_ids, (list, tuple, set)) or isinstance(entity_ids, (str, bytes, Mapping)):
             _LOGGER.warning("Type de collection d'entités non supporté : %r", type(entity_ids))
             return _AwaitableList()
 
@@ -284,6 +284,31 @@ class SevenhugsLuaInjector:
 
         return _AwaitableList(triggers)
 
+    def _get_existing_webhook_device_ids(self) -> list[str]:
+        """Retourne les identifiants d'appareils sevenhugs.control.webhooks déjà présents dans le carrousel."""
+        try:
+            domain_data = getattr(self.hass, "data", {}).get(DOMAIN, {}) if hasattr(self.hass, "data") else {}
+            runtime_data = domain_data.get(self.entry.entry_id) if isinstance(domain_data, Mapping) else None
+            coordinator = getattr(runtime_data, "coordinator", None) if runtime_data else None
+            if coordinator is None and isinstance(runtime_data, Mapping):
+                coordinator = runtime_data.get("coordinator")
+            coord_data = getattr(coordinator, "data", None) if coordinator else None
+            if not isinstance(coord_data, Mapping):
+                return []
+            raw_settings = coord_data.get("raw_settings", {})
+            if not isinstance(raw_settings, Mapping):
+                return []
+            carousel = raw_settings.get("carousel_order", [])
+            if not isinstance(carousel, list):
+                return []
+            return [
+                str(item["id"])
+                for item in carousel
+                if isinstance(item, Mapping) and str(item.get("id", "")).startswith("sevenhugs.control.webhooks:")
+            ]
+        except Exception:
+            return []
+
     async def async_sync_entities(
         self,
         entity_ids: list[str] | None = None,
@@ -302,11 +327,11 @@ class SevenhugsLuaInjector:
         async with self._lock:
             # 1. Résolution de la liste des entités cibles
             if entity_ids is None:
-                options = getattr(self.entry, "options", {}) or {}
-                data = getattr(self.entry, "data", {}) or {}
-                if isinstance(options, dict) and CONF_ENTITIES in options:
+                options = getattr(self.entry, "options", None)
+                data = getattr(self.entry, "data", None)
+                if isinstance(options, Mapping) and CONF_ENTITIES in options:
                     entity_ids = options.get(CONF_ENTITIES, [])
-                elif isinstance(data, dict) and CONF_ENTITIES in data:
+                elif isinstance(data, Mapping) and CONF_ENTITIES in data:
                     entity_ids = data.get(CONF_ENTITIES, [])
                 else:
                     entity_ids = []
@@ -320,8 +345,16 @@ class SevenhugsLuaInjector:
             build_res = self.async_build_triggers_from_entities(entity_ids)
             triggers = await build_res if inspect.isawaitable(build_res) else build_res
 
+            existing_wh_ids = self._get_existing_webhook_device_ids()
+
             # 3. Gestion gracieuse des déclencheurs vides (0 boutons)
             if not triggers:
+                if existing_wh_ids and hasattr(self.client, "async_delete_remote_items"):
+                    try:
+                        await self.client.async_delete_remote_items(existing_wh_ids)
+                        self._notify_coordinator_wake_up("lua_sync_clear")
+                    except Exception as del_err:
+                        _LOGGER.debug("Nettoyage des anciens webhooks ignoré : %s", del_err)
                 _LOGGER.info(
                     "Aucun déclencheur à synchroniser pour %s : liste d'entités vide ou non valide",
                     self._entry_title,
@@ -330,13 +363,19 @@ class SevenhugsLuaInjector:
                 return True
 
             # 4. Envoi effectif vers l'assistant Lua avec tolérance de veille et d'erreurs
-            _LOGGER.debug(
+            _LOGGER.info(
                 "Envoi de %d déclencheurs vers l'assistant Lua Sevenhugs (%s)",
                 len(triggers),
                 self._entry_title,
             )
 
             try:
+                if existing_wh_ids and hasattr(self.client, "async_delete_remote_items"):
+                    try:
+                        await self.client.async_delete_remote_items(existing_wh_ids)
+                    except Exception as del_err:
+                        _LOGGER.debug("Remplacement préalable des anciens webhooks ignoré : %s", del_err)
+
                 success = await self.client.async_push_webhooks(triggers)
                 if success:
                     _LOGGER.info(
