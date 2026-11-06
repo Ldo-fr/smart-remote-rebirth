@@ -380,6 +380,9 @@ class AsyncSmartRemoteClient:
                 if resp.status == 400:
                     raise SevenhugsAuthError("Session expirée ou rejetée par la télécommande (HTTP 400)")
                 if resp.status not in (200, 204):
+                    # /api/hello atteste de la présence active du serveur HTTP même s'il renvoie 404
+                    if path == "/api/hello" and resp.status == 404:
+                        return {"status": "ok", "code": 404}
                     raise SevenhugsConnectionError(f"Requête HTTP {path} a retourné le statut {resp.status}")
                 if resp.status == 204:
                     return {}
