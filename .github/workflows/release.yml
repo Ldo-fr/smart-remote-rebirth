@@ -118,13 +118,15 @@ jobs:
           git push origin ${{ steps.versioning.outputs.tag_name }}
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.versioning.outputs.tag_name }}
-          name: Release ${{ steps.versioning.outputs.tag_name }}
-          generate_release_notes: true
-          prerelease: ${{ steps.versioning.outputs.is_prerelease == 'true' }}
-          files: sevenhugs_smart_remote.zip
+        run: |
+          PRERELEASE_FLAG=""
+          if [ "${{ steps.versioning.outputs.is_prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "${{ steps.versioning.outputs.tag_name }}" sevenhugs_smart_remote.zip \
+            --title "Release ${{ steps.versioning.outputs.tag_name }}" \
+            --generate-notes \
+            $PRERELEASE_FLAG
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
