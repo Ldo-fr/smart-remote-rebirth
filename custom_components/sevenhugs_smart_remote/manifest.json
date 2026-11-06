@@ -1,22 +1,22 @@
 {
   "domain": "sevenhugs_smart_remote",
   "name": "Sevenhugs Smart Remote",
+  "categories": [
+    "buttons_remotes"
+  ],
   "codeowners": [
     "@Ldo-fr"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/Ldo-fr/smart-remote-rebirth",
-  "issue_tracker": "https://github.com/Ldo-fr/smart-remote-rebirth/issues",
-  "categories": [
-    "buttons_remotes"
-  ],
   "dependencies": [
     "webhook"
   ],
+  "documentation": "https://github.com/Ldo-fr/smart-remote-rebirth",
   "integration_type": "hub",
   "iot_class": "local_polling",
-  "version": "0.2.0",
+  "issue_tracker": "https://github.com/Ldo-fr/smart-remote-rebirth/issues",
   "requirements": [],
+  "version": "0.2.0",
   "zeroconf": [
     {
       "type": "_smart_remote._tcp.local.",
