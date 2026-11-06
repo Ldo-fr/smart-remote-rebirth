@@ -51,6 +51,7 @@ except ImportError:
 
     aiohttp = _AiohttpModule()  # type: ignore[assignment]
 
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
@@ -124,15 +125,16 @@ class AsyncSmartRemoteClient:
         if raw_read_k:
             self._session_read_key = bytes.fromhex(raw_read_k) if isinstance(raw_read_k, str) else bytes(raw_read_k)
 
-        # Indicateur d'état de session active
-        self._is_verified: bool = bool(self._session_write_key and self._session_read_key)
+        # Indicateur d'état de session active : toujours False à l'instanciation
+        # car une nouvelle connexion TCP Keep-Alive nécessite son propre handshake Pair-Verify
+        self._is_verified: bool = False
 
         # Double verrouillage :
         # _verify_lock : protection contre la ruée d'appels (thundering herd) sur Pair-Verify
         # _request_lock : sérialisation des échanges HTTP physiques sur la socket active unique
         self._verify_lock = asyncio.Lock()
         self._request_lock = asyncio.Lock()
-        self._session_generation: int = 1 if self._is_verified else 0
+        self._session_generation: int = 0
 
     @property
     def session_generation(self) -> int:
@@ -391,8 +393,32 @@ class AsyncSmartRemoteClient:
                 if not resp_bytes:
                     return {}
 
-                decrypted = decrypt_api_payload(self._session_read_key, resp_bytes)
-                return json.loads(decrypted.decode("utf-8"))
+                try:
+                    decrypted = decrypt_api_payload(self._session_read_key, resp_bytes)
+                    return json.loads(decrypted.decode("utf-8"))
+                except InvalidTag as err:
+                    # Tente de vérifier si la télécommande a renvoyé du JSON clair
+                    try:
+                        raw_text = resp_bytes.decode("utf-8")
+                        unencrypted_json = json.loads(raw_text)
+                        _LOGGER.info("Réponse de %s reçue en clair (non chiffrée): %s", path, unencrypted_json)
+                        return unencrypted_json
+                    except Exception:
+                        pass
+                    _LOGGER.warning(
+                        "Échec de déchiffrement Poly1305 sur %s (longueur=%d) avec session_read_key: %s",
+                        path,
+                        len(resp_bytes),
+                        err,
+                    )
+                    self._is_verified = False
+                    raise SevenhugsAuthError(
+                        f"Tag Poly1305 invalide lors du déchiffrement de la réponse {path} (session expirée ou désynchronisée)"
+                    ) from err
+                except (json.JSONDecodeError, UnicodeDecodeError) as err:
+                    _LOGGER.warning("Réponse déchiffrée invalide sur %s: %s", path, err)
+                    self._is_verified = False
+                    raise SevenhugsAuthError(f"Contenu déchiffré invalide sur {path}: {err}") from err
         except (aiohttp.ClientError, TimeoutError) as err:
             self._is_verified = False
             raise SevenhugsConnectionError(f"Erreur réseau lors de {method} {path}: {err}") from err
@@ -528,7 +554,10 @@ class AsyncSmartRemoteClient:
         if not enc_m6:
             raise SevenhugsAuthError("M6 incomplet : données chiffrées absentes")
 
-        dec_m6 = ChaCha20Poly1305(session_key).decrypt(NONCE_PS_MSG06, enc_m6, None)
+        try:
+            dec_m6 = ChaCha20Poly1305(session_key).decrypt(NONCE_PS_MSG06, enc_m6, None)
+        except Exception as err:
+            raise SevenhugsAuthError(f"Échec de déchiffrement de M6 : {err}") from err
         sub_m6 = decode_tlv(dec_m6)
 
         remote_id = sub_m6.get(0x01, b"").decode("utf-8", errors="replace")

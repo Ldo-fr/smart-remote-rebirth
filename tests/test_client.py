@@ -447,6 +447,53 @@ async def test_async_request_timeout_recovery() -> None:
         await server.stop()
 
 
+@pytest.mark.asyncio
+async def test_async_request_invalid_tag_triggers_auto_reconnect(test_keys: dict[str, Any] | None = None) -> None:
+    """Vérifie qu'un InvalidTag (clé désynchronisée) déclenche une ré-authentification transparente."""
+    server = MockSmartRemoteServer()
+    await server.start()
+
+    if test_keys is None:
+        client_sk = ed25519.Ed25519PrivateKey.generate()
+        keys = {
+            "controller_id": "ctrl-invalid-tag-test",
+            "client_private_key": client_sk.private_bytes_raw().hex(),
+            "remote_public_key": server.remote_pk.hex(),
+        }
+    else:
+        keys = dict(test_keys)
+        keys["remote_public_key"] = server.remote_pk.hex()
+
+    connector = aiohttp.TCPConnector(force_close=False, limit=1)
+    session = aiohttp.ClientSession(connector=connector)
+
+    client = AsyncSmartRemoteClient(
+        host=f"{server.host}:{server.port}",
+        session=session,
+        keys=keys,
+    )
+
+    try:
+        # Établissement initial de la session
+        await client.async_pair_verify()
+        assert client.is_verified is True
+        initial_gen = client.session_generation
+
+        # Corruption artificielle de la clé de lecture pour simuler une désynchronisation
+        client._session_read_key = b"C" * 32
+
+        # L'appel doit intercepter InvalidTag, ré-authentifier automatiquement et réussir
+        resp = await client.async_request("GET", "/api/settings")
+        assert resp.get("battery") == 95
+        assert client.is_verified is True
+        assert client.session_generation > initial_gen
+        assert server.m1_verify_count == 2
+    finally:
+        await client.close()
+        await session.close()
+        await server.stop()
+
+
 def run_all_async_tests() -> int:
     """Exécute l'ensemble des tests asynchrones de test_client.py et rapporte le bilan."""
     tests = [
@@ -458,6 +505,7 @@ def run_all_async_tests() -> int:
         test_async_request_concurrent_recovery_under_socket_failure,
         test_async_request_persistent_failure_raises,
         test_async_request_timeout_recovery,
+        test_async_request_invalid_tag_triggers_auto_reconnect,
         test_async_push_webhooks_flow,
     ]
     passed = 0
@@ -491,6 +539,7 @@ def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
         test_async_request_concurrent_recovery_under_socket_failure,
         test_async_request_persistent_failure_raises,
         test_async_request_timeout_recovery,
+        test_async_request_invalid_tag_triggers_auto_reconnect,
         test_async_push_webhooks_flow,
     ]
     for fn in tests:
