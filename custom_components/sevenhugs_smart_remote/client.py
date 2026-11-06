@@ -145,14 +145,8 @@ class AsyncSmartRemoteClient:
         return self._is_verified
 
     async def close(self) -> None:
-        """Ferme la session aiohttp si elle est gérée en propre."""
-        if hasattr(self._session, "close") and callable(self._session.close):
-            try:
-                res = self._session.close()
-                if asyncio.iscoroutine(res):
-                    await res
-            except Exception as err:
-                _LOGGER.debug("Erreur lors de la fermeture de session: %s", err)
+        """Nettoie l'état interne du client sans fermer la session partagée gérée par Home Assistant."""
+        self._is_verified = False
 
     async def async_pair_verify(
         self,

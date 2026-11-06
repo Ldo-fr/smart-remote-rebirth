@@ -233,9 +233,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client = getattr(data, "client", data.get("client") if isinstance(data, dict) else data)
         if client and hasattr(client, "close"):
             await client.close()
-        session = getattr(data, "session", data.get("session") if isinstance(data, dict) else None)
-        if session and hasattr(session, "close") and not getattr(session, "closed", False):
-            await session.close()
 
     # 4. Réinitialisation explicite de runtime_data
     if hasattr(entry, "runtime_data"):
