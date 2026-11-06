@@ -16,7 +16,7 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/Ldo-fr/smart-remote-rebirth/issues",
   "requirements": [],
-  "version": "0.2.14",
+  "version": "0.2.15",
   "zeroconf": [
     {
       "type": "_smart_remote._tcp.local.",
