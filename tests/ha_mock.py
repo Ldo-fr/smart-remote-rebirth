@@ -1796,6 +1796,17 @@ def install_ha_mocks() -> None:
     sys.modules["homeassistant.helpers.selector"] = selector_mod
     helpers_mod.selector = selector_mod
 
+    # homeassistant.helpers.service_info
+    service_info_mod = types.ModuleType("homeassistant.helpers.service_info")
+    service_info_mod.__path__ = []
+    sys.modules["homeassistant.helpers.service_info"] = service_info_mod
+    helpers_mod.service_info = service_info_mod
+
+    service_info_zc_mod = types.ModuleType("homeassistant.helpers.service_info.zeroconf")
+    service_info_zc_mod.ZeroconfServiceInfo = ZeroconfServiceInfo
+    sys.modules["homeassistant.helpers.service_info.zeroconf"] = service_info_zc_mod
+    service_info_mod.zeroconf = service_info_zc_mod
+
     # aiohttp.web enrichment
     web_mod = sys.modules.get("aiohttp.web")
     if web_mod is None:
