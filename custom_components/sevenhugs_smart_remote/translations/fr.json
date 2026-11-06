@@ -21,7 +21,7 @@
       },
       "pair_pin": {
         "title": "Saisir le code PIN de la télécommande",
-        "description": "Regardez l'écran tactile de votre Smart Remote. Entrez le code à 8 chiffres affiché (ex. 123-45-678) :",
+        "description": "Regardez l'écran tactile de votre Smart Remote. Entrez le code à 8 chiffres affiché (ex. 123-45-678) avant que l'écran ne s'éteigne (délai court ~30s) :",
         "data": {
           "pin": "Code PIN"
         }
@@ -43,8 +43,8 @@
       "cannot_connect": "Impossible de communiquer avec la télécommande. Vérifiez son adresse IP et sa connexion Wi-Fi.",
       "timeout_connect": "La télécommande a mis trop de temps à répondre pour générer son code.",
       "remote_busy": "La télécommande réinitialise sa session de sécurité. Veuillez réessayer dans quelques secondes.",
-      "invalid_pin": "Le code PIN saisi est incorrect. Veuillez vérifier les chiffres affichés sur la télécommande.",
-      "pairing_failed": "Échec du jumelage. Impossible de vérifier les identifiants cryptographiques.",
+      "invalid_pin": "Le code PIN saisi est incorrect ou a expiré. La télécommande a réinitialisé la session : fermez cette fenêtre et recommencez pour afficher un nouveau code.",
+      "pairing_failed": "Échec du jumelage. La session sur la télécommande a expiré : fermez cette fenêtre et recommencez pour afficher un nouveau code.",
       "already_configured": "Cette télécommande Sevenhugs est déjà configurée dans Home Assistant.",
       "unknown": "Une erreur inattendue est survenue. Consultez les journaux d'erreurs de Home Assistant."
     },

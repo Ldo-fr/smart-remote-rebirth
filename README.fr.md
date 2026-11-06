@@ -83,8 +83,8 @@ Une fois l'intégration installée et Home Assistant redémarré :
 3. **Appairage assisté** :
    - Si votre télécommande est allumée et connectée au même Wi-Fi, elle est **détectée automatiquement** via mDNS. Sinon, entrez simplement son adresse IP locale.
    - Cliquez sur **Suivant**. L'intégration initialise le calcul d'empreinte matérielle SRP-6a (~16 secondes).
-   - Un **code PIN à 8 chiffres** (`XXX-XX-XXX`) s'affiche sur l'écran AMOLED de la Smart Remote.
-   - Saisissez ce code dans la fenêtre Home Assistant et validez.
+   - Un **code PIN à 8 chiffres** (`XXX-XX-XXX`) s'affiche sur l'écran tactile de la Smart Remote.
+   - Saisissez ce code dans la fenêtre Home Assistant et validez sans attendre. *(Note : La télécommande affiche le code pendant environ 30 à 45 secondes avant de s'éteindre par sécurité. Si l'écran s'éteint ou si le code est refusé, la télécommande réinitialise la session : fermez la fenêtre de dialogue et relancez l'appairage pour générer un nouveau code).*
 4. **C'est prêt !** Votre télécommande apparaît comme un appareil avec ses entités (niveau de batterie, Wi-Fi, chargeur, et boutons d'action).
 
 > [!TIP]

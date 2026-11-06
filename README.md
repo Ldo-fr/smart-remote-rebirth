@@ -83,8 +83,8 @@ Once the integration is installed and Home Assistant has restarted:
 3. **Guided Pairing**:
    - If your remote is powered on and connected to the same Wi-Fi network, it will be **discovered automatically** via mDNS. Otherwise, manually enter its local IP address.
    - Click **Next**. The integration initiates the SRP-6a hardware calculation (~16 seconds).
-   - An **8-digit PIN code** (`XXX-XX-XXX`) will appear on the AMOLED screen of your Smart Remote.
-   - Enter this PIN in Home Assistant and validate.
+   - An **8-digit PIN code** (`XXX-XX-XXX`) will appear on the touchscreen of your Smart Remote.
+   - Enter this PIN in Home Assistant and validate promptly. *(Note: The remote displays the PIN for about 30 to 45 seconds before putting its screen to sleep. If the screen turns off or the code is rejected, the remote cancels the session: close the dialog and restart pairing to generate a new PIN).*
 4. **All set!** Your remote appears as a device with all its entities (battery, Wi-Fi, charging dock, diagnostic sensors, and action buttons).
 
 > [!TIP]

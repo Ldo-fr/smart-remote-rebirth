@@ -21,7 +21,7 @@
       },
       "pair_pin": {
         "title": "Enter Remote PIN Code",
-        "description": "Look at your Smart Remote screen. Enter the 8-digit PIN code displayed (e.g. 123-45-678 or 12345678):",
+        "description": "Look at your Smart Remote screen. Enter the 8-digit PIN code displayed (e.g. 123-45-678 or 12345678) before the screen turns off (~30s timeout):",
         "data": {
           "pin": "PIN Code"
         }
@@ -43,8 +43,8 @@
       "cannot_connect": "Failed to communicate with the remote. Check its IP address and Wi-Fi connection.",
       "timeout_connect": "The remote took too long to calculate its security code.",
       "remote_busy": "The remote is busy resetting its security session. Please retry.",
-      "invalid_pin": "The PIN code entered is incorrect or invalid. Please check the digits on the remote.",
-      "pairing_failed": "Pairing failed. Could not verify cryptographic proof.",
+      "invalid_pin": "The PIN code entered is incorrect or has expired. The remote has reset the session: please close this dialog and restart pairing to generate a new PIN.",
+      "pairing_failed": "Pairing failed. The security session on the remote has expired: please close this dialog and restart.",
       "already_configured": "This Sevenhugs Smart Remote is already configured in Home Assistant.",
       "unknown": "An unexpected error occurred. Please consult Home Assistant logs."
     },
