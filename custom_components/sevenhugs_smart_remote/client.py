@@ -355,7 +355,6 @@ class AsyncSmartRemoteClient:
             raise SevenhugsAuthError("Clés de session manquantes. Handshake Pair-Verify requis.")
 
         headers = {
-            "Content-Type": "application/octet-stream",
             "X-UUID": str(self._controller_id),
             "X-Version": "31",
             "X-Min-Version": "24",
@@ -363,8 +362,9 @@ class AsyncSmartRemoteClient:
             "User-Agent": "okhttp/3.12.0",
         }
 
-        body = b""
+        body: bytes | None = None
         if json_data is not None:
+            headers["Content-Type"] = "application/json; charset=UTF-8"
             plaintext = json.dumps(json_data).encode("utf-8")
             body = encrypt_api_payload(self._session_write_key, plaintext)
 
@@ -379,18 +379,21 @@ class AsyncSmartRemoteClient:
             async with self._session.request(
                 method, url, data=body, headers=headers, timeout=timeout_param
             ) as resp:
+                resp_bytes = await resp.read()
                 if resp.status == 400:
-                    raise SevenhugsAuthError("Session expirée ou rejetée par la télécommande (HTTP 400)")
+                    err_detail = self._try_decode_error_bytes(resp_bytes)
+                    raise SevenhugsAuthError(
+                        f"Session expirée ou rejetée par la télécommande (HTTP 400){err_detail}"
+                    )
                 if resp.status not in (200, 204):
                     # /api/hello atteste de la présence active du serveur HTTP même s'il renvoie 404
                     if path == "/api/hello" and resp.status == 404:
                         return {"status": "ok", "code": 404}
-                    raise SevenhugsConnectionError(f"Requête HTTP {path} a retourné le statut {resp.status}")
-                if resp.status == 204:
-                    return {}
-
-                resp_bytes = await resp.read()
-                if not resp_bytes:
+                    err_detail = self._try_decode_error_bytes(resp_bytes)
+                    raise SevenhugsConnectionError(
+                        f"Requête HTTP {path} a retourné le statut {resp.status}{err_detail}"
+                    )
+                if resp.status == 204 or not resp_bytes:
                     return {}
 
                 try:
@@ -422,6 +425,26 @@ class AsyncSmartRemoteClient:
         except (aiohttp.ClientError, TimeoutError) as err:
             self._is_verified = False
             raise SevenhugsConnectionError(f"Erreur réseau lors de {method} {path}: {err}") from err
+
+    def _try_decode_error_bytes(self, resp_bytes: bytes) -> str:
+        """Tente de déchiffrer ou décoder en clair le corps d'une réponse d'erreur HTTP."""
+        if not resp_bytes:
+            return ""
+        if self._session_read_key:
+            try:
+                dec = decrypt_api_payload(self._session_read_key, resp_bytes).decode(
+                    "utf-8", errors="replace"
+                )
+                return f" - {dec}"
+            except Exception:
+                pass
+        try:
+            text = resp_bytes.decode("utf-8")
+            if text.isprintable():
+                return f" - {text}"
+        except Exception:
+            pass
+        return f" (payload {len(resp_bytes)} octets)"
 
     async def async_pair_setup_m1(self) -> tuple[bytes, bytes]:
         """Émet la requête M1 de Pair-Setup vers /pair-setup et extrait Salt et clé publique B."""
@@ -613,7 +636,8 @@ class AsyncSmartRemoteClient:
         if not webhooks_manifest:
             raise SevenhugsConnectionError("Manifeste 'sevenhugs.control.webhooks' introuvable")
 
-        redirect_resp = await self.async_request("POST", "/api/devices", webhooks_manifest)
+        manifest_payload = {k: v for k, v in webhooks_manifest.items() if k != "discover"}
+        redirect_resp = await self.async_request("POST", "/api/devices", manifest_payload)
         if not isinstance(redirect_resp, dict) or "url" not in redirect_resp:
             raise SevenhugsConnectionError(f"Échec de l'initialisation de l'assistant Webhooks: {redirect_resp}")
 
@@ -722,17 +746,20 @@ class AsyncSmartRemoteClient:
         deleted_count = 0
         deleted_set: set[str] = set()
 
-        for raw_id in item_ids:
-            if not isinstance(raw_id, str) or ":" not in raw_id:
-                continue
-            item_id = raw_id.strip()
+        # Supprimer les groupes (sevenhugs.control.groups:*) en premier pour libérer les appareils rattachés
+        sorted_ids = sorted(
+            (r.strip() for r in item_ids if isinstance(r, str) and ":" in r),
+            key=lambda x: 0 if x.startswith("sevenhugs.control.groups:") else 1,
+        )
+
+        for item_id in sorted_ids:
             pkg_id, _, dev_id = item_id.partition(":")
             try:
                 if pkg_id == "sevenhugs.control.groups":
                     payload = groups_map.get(dev_id, {"id": dev_id, "package_id": "sevenhugs.control.groups"})
                     await self.async_request("DELETE", "/api/components-groups", payload)
                 else:
-                    payload = devices_map.get((pkg_id, dev_id), {"package_id": pkg_id, "device_id": dev_id})
+                    payload = dict(devices_map.get((pkg_id, dev_id), {"package_id": pkg_id, "device_id": dev_id}))
                     await self.async_request("DELETE", "/api/devices", payload)
                 deleted_count += 1
                 deleted_set.add(item_id)

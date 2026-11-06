@@ -1005,8 +1005,8 @@ async def test_options_flow_delete_remote_devices() -> None:
     assert deleted == 2
     delete_calls = [c for c in calls if c[0] == "DELETE"]
     assert len(delete_calls) == 2
-    assert delete_calls[0][1] == "/api/devices"
-    assert delete_calls[1][1] == "/api/components-groups"
+    assert delete_calls[0][1] == "/api/components-groups"
+    assert delete_calls[1][1] == "/api/devices"
 
     # Test de compatibilité MappingProxyType (Home Assistant Core 2024+ / 2026+)
     from types import MappingProxyType
