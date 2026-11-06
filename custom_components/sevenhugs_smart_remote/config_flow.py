@@ -294,23 +294,26 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self._pair_client.close()
                 self._pair_client = None
 
-                # Inscription dans le Device Registry de Home Assistant
-                entry_id = self._reauth_entry.entry_id if self._reauth_entry else f"7hugs_{serial_number or resolved_id}"
-                device_registry = dr.async_get(self.hass)
-                connections = set()
-                if mac_address:
-                    connections.add((dr.CONNECTION_NETWORK_MAC, mac_address))
+                # Inscription conditionnelle dans le Device Registry de Home Assistant
+                try:
+                    entry_id = self._reauth_entry.entry_id if self._reauth_entry else f"7hugs_{serial_number or resolved_id}"
+                    device_registry = dr.async_get(self.hass)
+                    connections = set()
+                    if mac_address:
+                        connections.add((dr.CONNECTION_NETWORK_MAC, mac_address))
 
-                device_registry.async_get_or_create(
-                    config_entry_id=entry_id,
-                    identifiers={(DOMAIN, serial_number or resolved_id)},
-                    connections=connections,
-                    manufacturer=MANUFACTURER,
-                    model=MODEL_SR1A,
-                    name=f"Sevenhugs Smart Remote ({resolved_id})",
-                    sw_version=fw_version or "0.76.4",
-                    hw_version=HARDWARE_VERSION,
-                )
+                    device_registry.async_get_or_create(
+                        config_entry_id=entry_id,
+                        identifiers={(DOMAIN, serial_number or resolved_id)},
+                        connections=connections,
+                        manufacturer=MANUFACTURER,
+                        model=MODEL_SR1A,
+                        name=f"Sevenhugs Smart Remote ({resolved_id})",
+                        sw_version=fw_version or "0.76.4",
+                        hw_version=HARDWARE_VERSION,
+                    )
+                except Exception as dr_err:
+                    _LOGGER.debug("Pré-enregistrement Device Registry ignoré dans le flux (sera finalisé lors du setup): %s", dr_err)
 
                 if self._reauth_entry:
                     return self.async_update_reload_and_abort(
@@ -336,9 +339,11 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     await self._pair_client.close()
                     self._pair_client = None
                 raise
-            except SevenhugsAuthError:
+            except SevenhugsAuthError as err:
+                _LOGGER.warning("Authentification refusée lors de pair_pin: %s", err)
                 errors["base"] = ERROR_INVALID_PIN
-            except SevenhugsConnectionError:
+            except SevenhugsConnectionError as err:
+                _LOGGER.error("Erreur de connexion lors de pair_pin: %s", err)
                 errors["base"] = ERROR_PAIRING_FAILED
             except Exception as err:
                 _LOGGER.exception("Erreur inattendue lors de pair_pin: %s", err)
