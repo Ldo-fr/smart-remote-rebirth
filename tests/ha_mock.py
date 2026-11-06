@@ -1769,10 +1769,12 @@ def install_ha_mocks() -> None:
 
     # homeassistant.helpers.aiohttp_client
     http_mod = types.ModuleType("homeassistant.helpers.aiohttp_client")
-    def _async_create_clientsession(hass: Any, verify_ssl: bool = True, auto_cleanup: bool = True, connector: Any = None) -> Any:
+    def _async_create_clientsession(hass: Any, verify_ssl: bool = True, auto_cleanup: bool = True, **kwargs: Any) -> Any:
+        if "connector" in kwargs:
+            raise TypeError("ClientSession.__init__() got multiple values for keyword argument 'connector'")
         mod = sys.modules.get("aiohttp")
         if mod and hasattr(mod, "ClientSession"):
-            return mod.ClientSession(connector=connector)
+            return mod.ClientSession()
         raise RuntimeError("aiohttp module not found in sys.modules")
     http_mod.async_create_clientsession = _async_create_clientsession
     http_mod.async_get_clientsession = lambda hass, verify_ssl=True: sys.modules["aiohttp"].ClientSession()

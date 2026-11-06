@@ -20,7 +20,10 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow, FlowResult
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import selector
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.aiohttp_client import (
+    async_create_clientsession,
+    async_get_clientsession,
+)
 
 from .client import AsyncSmartRemoteClient, SevenhugsAuthError, SevenhugsConnectionError
 from .const import (
@@ -97,13 +100,17 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             host = user_input[CONF_HOST].strip()
             port = int(user_input.get(CONF_PORT, DEFAULT_PORT))
 
-            # Vérification de connectivité HTTP/TCP port 80
-            if await self._async_probe_host(host, port):
-                self.host = host
-                self.port = port
-                return await self.async_step_pair_init()
+            try:
+                # Vérification de connectivité HTTP/TCP port 80
+                if await self._async_probe_host(host, port):
+                    self.host = host
+                    self.port = port
+                    return await self.async_step_pair_init()
 
-            errors["base"] = ERROR_CANNOT_CONNECT
+                errors["base"] = ERROR_CANNOT_CONNECT
+            except Exception as err:
+                _LOGGER.exception("Erreur inattendue lors de la saisie utilisateur: %s", err)
+                errors["base"] = ERROR_CANNOT_CONNECT
 
         return self.async_show_form(
             step_id="user",
@@ -159,18 +166,10 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             target_host = f"{self.host}:{self.port}" if self.port and self.port != 80 else self.host
 
-            connector = aiohttp.TCPConnector(
-                force_close=False,
-                limit=1,
-                limit_per_host=1,
-                enable_cleanup_closed=True,
-                keepalive_timeout=60.0,
-            )
             session = async_create_clientsession(
                 self.hass,
                 verify_ssl=False,
                 auto_cleanup=False,
-                connector=connector,
             )
             client = AsyncSmartRemoteClient(
                 host=target_host,
@@ -413,20 +412,14 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         target = f"{host}:{port}" if port != 80 else host
         url = f"http://{target}/api/hello"
 
-        connector = aiohttp.TCPConnector(force_close=True)
-        session = async_create_clientsession(
-            self.hass,
-            verify_ssl=False,
-            connector=connector,
-        )
         try:
+            session = async_get_clientsession(self.hass, verify_ssl=False)
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=TIMEOUT_CONNECT_CHECK)) as resp:
-                # La télécommande retourne 200 sur /api/hello
+                # La télécommande retourne 200 sur /api/hello (ou 204/404)
                 return resp.status in (200, 204, 404)
-        except Exception:
+        except Exception as err:
+            _LOGGER.debug("Échec de la sonde HTTP sur %s: %s", url, err)
             return False
-        finally:
-            await session.close()
 
     async def _async_verify_device_match(self, entry: config_entries.ConfigEntry, host: str, port: int) -> bool:
         """Vérifie que le périphérique à la nouvelle adresse correspond au même numéro de série."""
@@ -435,8 +428,7 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return True
 
         target = f"{host}:{port}" if port != 80 else host
-        connector = aiohttp.TCPConnector(force_close=False, limit=1)
-        session = async_create_clientsession(self.hass, connector=connector)
+        session = async_create_clientsession(self.hass, verify_ssl=False, auto_cleanup=False)
         client = AsyncSmartRemoteClient(host=target, session=session, keys=dict(entry.data))
 
         try:

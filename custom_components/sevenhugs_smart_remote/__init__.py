@@ -33,8 +33,7 @@ except ImportError:
     ConfigEntryNotReady = Exception  # type: ignore[misc,assignment]
 
     def async_create_clientsession(*args: Any, **kwargs: Any) -> Any:
-        connector = kwargs.get("connector")
-        return aiohttp.ClientSession(connector=connector)
+        return aiohttp.ClientSession()
 
 from .client import AsyncSmartRemoteClient, SevenhugsAuthError, SevenhugsConnectionError
 from .const import (
@@ -136,19 +135,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     port = entry.data.get(CONF_PORT, DEFAULT_PORT)
     target_host = f"{host}:{port}" if port and port != 80 else host
 
-    # Socket TCP Keep-Alive exclusive avec limitation stricte à 1 socket active
-    connector = aiohttp.TCPConnector(
-        force_close=False,
-        limit=1,
-        limit_per_host=1,
-        enable_cleanup_closed=True,
-        keepalive_timeout=60.0,
-    )
+    # ClientSession asynchrone dédiée managed par Home Assistant
     session = async_create_clientsession(
         hass,
         verify_ssl=False,
         auto_cleanup=False,
-        connector=connector,
     )
 
     client = AsyncSmartRemoteClient(
