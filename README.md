@@ -133,6 +133,8 @@ Le dépôt utilise **GitHub Actions** pour automatiser les tests et la publicati
    - Pose le tag Git `vX.Y.Z`.
    - Publie la **GitHub Release** avec les notes de version automatiques et l'archive `sevenhugs_smart_remote.zip`.
    - Marque automatiquement la release en **Pre-release** tant que la version commence par `0.X.Y`.
+4. **Nettoyage automatique des branches** :
+   À la fermeture d'une PR (qu'elle soit acceptée et fusionnée ou fermée/rejetée), le workflow [`.github/workflows/cleanup-branch.yml`](.github/workflows/cleanup-branch.yml) supprime automatiquement la branche source associée pour conserver un dépôt propre.
 
 ---
 
