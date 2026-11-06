@@ -455,18 +455,33 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
     """Gestionnaire d'options avancées pour Sevenhugs Smart Remote."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialise le gestionnaire d'options."""
-        super().__init__(config_entry)
-        self.config_entry = config_entry
+    def __init__(self, config_entry: config_entries.ConfigEntry | None = None) -> None:
+        """Initialise le gestionnaire d'options (compatible HA 2024.11+ / 2025+)."""
+        super().__init__()
+        self._config_entry_ref = config_entry
+        try:
+            self.config_entry = config_entry  # type: ignore[misc]
+        except Exception:
+            pass
+
+    @property
+    def _entry(self) -> Any:
+        """Retourne la ConfigEntry associée de manière compatible toutes versions HA."""
+        if self._config_entry_ref is not None:
+            return self._config_entry_ref
+        try:
+            return self.config_entry
+        except Exception:
+            return None
 
     def _get_remote_carousel_options(self) -> list[dict[str, str]]:
         """Extrait la liste des appareils/groupes présents dans le carrousel de la télécommande."""
         hass = getattr(self, "hass", None)
-        if not hass or not hasattr(hass, "data") or not isinstance(hass.data, dict):
+        entry = self._entry
+        if not hass or not entry or not hasattr(hass, "data") or not isinstance(hass.data, dict):
             return []
 
-        runtime_data = hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+        runtime_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
         if not runtime_data:
             return []
 
@@ -503,7 +518,9 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        options = self.config_entry.options or {}
+        entry = self._entry
+        raw_opts = getattr(entry, "options", None) if entry is not None else None
+        options = dict(raw_opts) if isinstance(raw_opts, dict) else {}
 
         default_entities = options.get(CONF_ENTITIES, DEFAULT_ENTITIES)
         if default_entities is None:
@@ -514,6 +531,11 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
             default_entities = []
 
         remote_options = self._get_remote_carousel_options()
+        dropdown_mode = (
+            selector.SelectSelectorMode.DROPDOWN
+            if hasattr(selector, "SelectSelectorMode")
+            else "dropdown"
+        )
 
         data_schema = vol.Schema({
             vol.Optional(
@@ -522,7 +544,7 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(
                     multiple=True,
-                    domain=DEFAULT_EXPOSED_DOMAINS,
+                    domain=list(DEFAULT_EXPOSED_DOMAINS),
                 )
             ),
             vol.Optional(
@@ -532,7 +554,7 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
                 selector.SelectSelectorConfig(
                     options=remote_options,
                     multiple=True,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    mode=dropdown_mode,
                 )
             ),
             vol.Optional(
