@@ -58,15 +58,25 @@
   "options": {
     "step": {
       "init": {
-        "title": "Options Smart Remote Rebirth",
-        "description": "Configurer les paramètres opérationnels de votre télécommande.",
+        "title": "Configuration de la Smart Remote",
+        "description": "Gérez les appareils et boutons présents sur votre télécommande :\n• Cliquez sur la croix (✕) à côté d'un élément pour le supprimer.\n• Cliquez dans la liste pour rechercher et ajouter une entité Home Assistant.",
         "data": {
-          "entities": "Entités exposées sur la télécommande",
+          "entities": "Éléments installés sur la télécommande",
           "delete_devices": "Appareils de la télécommande à supprimer définitivement",
           "trigger_resync": "Déclencher la resynchronisation immédiate vers la télécommande",
           "polling_interval": "Intervalle de rafraîchissement (secondes)",
           "auto_sync_webhooks": "Synchronisation automatique des webhooks",
           "timeout": "Délai d'attente des requêtes (secondes)"
+        },
+        "sections": {
+          "advanced_settings": {
+            "name": "Paramètres avancés",
+            "description": "Réglages techniques de communication avec la télécommande.",
+            "data": {
+              "polling_interval": "Intervalle de rafraîchissement (secondes)",
+              "timeout": "Délai d'attente des requêtes (secondes)"
+            }
+          }
         }
       }
     }

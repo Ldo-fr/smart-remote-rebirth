@@ -195,17 +195,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         options = dict(raw_options) if isinstance(raw_options, Mapping) else {}
         delete_devices = options.get(CONF_DELETE_DEVICES)
         if isinstance(delete_devices, (list, tuple, set)) and delete_devices:
-            try:
-                _LOGGER.info(
-                    "Suppression de %d appareil(s)/groupe(s) sur la télécommande : %s",
-                    len(delete_devices),
-                    list(delete_devices),
-                )
-                await client.async_delete_remote_items(list(delete_devices))
-                if hasattr(coordinator, "async_request_refresh"):
-                    await coordinator.async_request_refresh()
-            except Exception as del_err:
-                _LOGGER.warning("Erreur lors de la suppression d'appareils sur la télécommande: %s", del_err)
+            coord_data = getattr(coordinator, "data", None)
+            raw_settings = coord_data.get("raw_settings", {}) if isinstance(coord_data, Mapping) else {}
+            carousel = raw_settings.get("carousel_order", []) if isinstance(raw_settings, Mapping) else []
+            if isinstance(carousel, list) and carousel:
+                present_ids = {
+                    str(item.get("id"))
+                    for item in carousel
+                    if isinstance(item, Mapping) and item.get("id")
+                }
+                pending_deletes = [d for d in delete_devices if d in present_ids]
+            else:
+                pending_deletes = list(delete_devices)
+
+            if pending_deletes:
+                try:
+                    _LOGGER.info(
+                        "Suppression de %d appareil(s)/groupe(s) sur la télécommande : %s",
+                        len(pending_deletes),
+                        pending_deletes,
+                    )
+                    await client.async_delete_remote_items(pending_deletes)
+                    if hasattr(coordinator, "async_request_refresh"):
+                        await coordinator.async_request_refresh()
+                except Exception as del_err:
+                    _LOGGER.warning("Erreur lors de la suppression d'appareils sur la télécommande: %s", del_err)
 
         auto_sync = options.get(CONF_AUTO_SYNC_WEBHOOKS, DEFAULT_AUTO_SYNC_WEBHOOKS)
         trigger_resync = options.get(CONF_TRIGGER_RESYNC, False)

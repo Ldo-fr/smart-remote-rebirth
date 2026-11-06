@@ -1109,6 +1109,17 @@ class SelectSelector(Selector):
             config = SelectSelectorConfig(**config)
         super().__init__(config or SelectSelectorConfig())
 
+    def __call__(self, data: Any) -> Any:
+        if data is None:
+            return [] if (self.config and getattr(self.config, "multiple", False)) else None
+        if self.config and getattr(self.config, "multiple", False):
+            if isinstance(data, (list, tuple, set)):
+                return list(data)
+            return [str(data)]
+        if isinstance(data, (list, tuple)) and len(data) == 1:
+            return data[0]
+        return data
+
 
 @dataclass
 class BooleanSelectorConfig:

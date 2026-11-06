@@ -18,6 +18,12 @@ except (ImportError, ModuleNotFoundError):
 
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow, FlowResult
+
+try:
+    from homeassistant.data_entry_flow import section as ha_section
+except ImportError:
+    ha_section = None  # type: ignore[assignment]
+
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import (
@@ -453,12 +459,13 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
-    """Gestionnaire d'options avancées pour Sevenhugs Smart Remote."""
+    """Gestionnaire d'options avancées pour Smart Remote Rebirth."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry | None = None) -> None:
         """Initialise le gestionnaire d'options (compatible HA 2024.11+ / 2025+)."""
         super().__init__()
         self._config_entry_ref = config_entry
+        self._initial_remote_ids: list[str] | None = None
         try:
             self.config_entry = config_entry  # type: ignore[misc]
         except Exception:
@@ -474,7 +481,7 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
         except Exception:
             return None
 
-    def _get_remote_carousel_options(self) -> list[dict[str, str]]:
+    def _get_remote_carousel_options(self, exclude_webhooks: bool = False) -> list[dict[str, str]]:
         """Extrait la liste des appareils/groupes présents dans le carrousel de la télécommande."""
         hass = getattr(self, "hass", None)
         entry = self._entry
@@ -506,75 +513,243 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
             if not isinstance(item, Mapping) or not item.get("id"):
                 continue
             item_id = str(item["id"])
+            if exclude_webhooks and item_id.startswith("sevenhugs.control.webhooks:"):
+                continue
             name = str(item.get("name") or item_id)
             category = str(item.get("category") or "device")
             select_options.append({
                 "value": item_id,
-                "label": f"{name} ({category})",
+                "label": f"📟 {name} ({category})",
             })
         return select_options
 
+    def _get_ha_entity_options(self, selected_entities: list[str]) -> list[dict[str, str]]:
+        """Construit les options de sélection pour toutes les entités Home Assistant éligibles."""
+        hass = getattr(self, "hass", None)
+        allowed_domains = set(DEFAULT_EXPOSED_DOMAINS)
+        entity_map: dict[str, str] = {}
+
+        if hass is not None and hasattr(hass, "states"):
+            states_obj = hass.states
+            all_states: list[Any] = []
+            try:
+                if hasattr(states_obj, "async_all"):
+                    res = states_obj.async_all()
+                    if isinstance(res, list):
+                        all_states = res
+                elif hasattr(states_obj, "_states") and isinstance(states_obj._states, Mapping):
+                    all_states = list(states_obj._states.values())
+            except Exception:
+                all_states = []
+
+            for state in all_states:
+                ent_id = getattr(state, "entity_id", None)
+                if not isinstance(ent_id, str) or "." not in ent_id:
+                    continue
+                domain = ent_id.partition(".")[0].lower()
+                if domain not in allowed_domains:
+                    continue
+                attrs = getattr(state, "attributes", None)
+                friendly = (
+                    attrs.get("friendly_name")
+                    if isinstance(attrs, Mapping) and attrs.get("friendly_name")
+                    else getattr(state, "name", None)
+                )
+                if isinstance(friendly, str) and friendly.strip() and friendly.strip() != ent_id:
+                    entity_map[ent_id] = f"🏠 {friendly.strip()} ({ent_id})"
+                else:
+                    entity_map[ent_id] = f"🏠 {ent_id}"
+
+        # Garantit que les entités déjà sélectionnées sont toujours présentes dans les options
+        for ent_id in selected_entities:
+            if isinstance(ent_id, str) and ent_id and ent_id not in entity_map:
+                entity_map[ent_id] = f"🏠 {ent_id}"
+
+        selected_set = set(selected_entities)
+        selected_opts = [
+            {"value": eid, "label": entity_map[eid]}
+            for eid in selected_entities
+            if eid in entity_map
+        ]
+        other_opts = sorted(
+            (
+                {"value": eid, "label": label}
+                for eid, label in entity_map.items()
+                if eid not in selected_set
+            ),
+            key=lambda x: x["label"].lower(),
+        )
+        return selected_opts + other_opts
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Formulaire de gestion des options."""
+        """Formulaire unifié de gestion des éléments de la télécommande et options avancées."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            processed_input = dict(user_input)
+
+            # Dépliage éventuel de la section repliable "advanced_settings" (HA 2024.4+)
+            adv = processed_input.pop("advanced_settings", None)
+            if isinstance(adv, Mapping):
+                for k, v in adv.items():
+                    processed_input.setdefault(k, v)
+                processed_input.setdefault(CONF_AUTO_SYNC_WEBHOOKS, True)
+                processed_input.setdefault(CONF_TRIGGER_RESYNC, True)
+
+            # Séparation automatique entre entités HA et appareils internes de la télécommande
+            if CONF_ENTITIES in processed_input and isinstance(
+                processed_input[CONF_ENTITIES], (list, tuple, set)
+            ):
+                submitted_items = [str(x) for x in processed_input[CONF_ENTITIES] if x]
+                initial_remote_ids = self._initial_remote_ids
+                if initial_remote_ids is None:
+                    initial_remote_ids = [
+                        opt["value"]
+                        for opt in self._get_remote_carousel_options(exclude_webhooks=False)
+                    ]
+
+                if initial_remote_ids or any(x.startswith("sevenhugs.") for x in submitted_items):
+                    removed_remote = [
+                        rid for rid in initial_remote_ids if rid not in submitted_items
+                    ]
+                    ha_entities = [
+                        x for x in submitted_items if not x.startswith("sevenhugs.")
+                    ]
+                    processed_input[CONF_ENTITIES] = ha_entities
+                    if removed_remote:
+                        existing_del = list(processed_input.get(CONF_DELETE_DEVICES) or [])
+                        processed_input[CONF_DELETE_DEVICES] = list(
+                            dict.fromkeys(existing_del + removed_remote)
+                        )
+
+            return self.async_create_entry(title="", data=processed_input)
 
         entry = self._entry
         raw_opts = getattr(entry, "options", None) if entry is not None else None
         options = dict(raw_opts) if isinstance(raw_opts, Mapping) else {}
 
-        default_entities = options.get(CONF_ENTITIES, DEFAULT_ENTITIES)
-        if default_entities is None:
-            default_entities = []
-        elif isinstance(default_entities, (list, tuple, set)):
-            default_entities = list(default_entities)
+        raw_entities = options.get(CONF_ENTITIES, DEFAULT_ENTITIES)
+        if raw_entities is None:
+            ha_entities: list[str] = []
+        elif isinstance(raw_entities, (list, tuple, set)):
+            ha_entities = [
+                str(x)
+                for x in raw_entities
+                if isinstance(x, str) and x.strip() and not x.strip().startswith("sevenhugs.")
+            ]
         else:
-            default_entities = []
+            ha_entities = []
 
-        remote_options = self._get_remote_carousel_options()
+        remote_options = self._get_remote_carousel_options(exclude_webhooks=bool(ha_entities))
+        remote_ids = [opt["value"] for opt in remote_options]
+        self._initial_remote_ids = list(remote_ids)
+
+        ha_options = self._get_ha_entity_options(ha_entities)
+        unified_options = remote_options + ha_options
+        default_selected = remote_ids + ha_entities
+
         dropdown_mode = (
             selector.SelectSelectorMode.DROPDOWN
             if hasattr(selector, "SelectSelectorMode")
             else "dropdown"
         )
 
-        data_schema = vol.Schema({
-            vol.Optional(
-                CONF_ENTITIES,
-                default=default_entities,
-            ): selector.EntitySelector(
+        raw_polling = options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
+        default_polling = (
+            raw_polling
+            if isinstance(raw_polling, int) and MIN_POLLING_INTERVAL <= raw_polling <= MAX_POLLING_INTERVAL
+            else DEFAULT_POLLING_INTERVAL
+        )
+        raw_timeout = options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)
+        default_timeout = raw_timeout if isinstance(raw_timeout, int) and raw_timeout > 0 else DEFAULT_TIMEOUT
+        raw_trigger = options.get(CONF_TRIGGER_RESYNC, False)
+        default_trigger = raw_trigger if isinstance(raw_trigger, bool) else False
+        raw_auto_sync = options.get(CONF_AUTO_SYNC_WEBHOOKS, DEFAULT_AUTO_SYNC_WEBHOOKS)
+        default_auto_sync = raw_auto_sync if isinstance(raw_auto_sync, bool) else DEFAULT_AUTO_SYNC_WEBHOOKS
+
+        unified_selector = (
+            selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=unified_options,
+                    multiple=True,
+                    custom_value=True,
+                    mode=dropdown_mode,
+                )
+            )
+            if unified_options
+            else selector.EntitySelector(
                 selector.EntitySelectorConfig(
                     multiple=True,
                     domain=list(DEFAULT_EXPOSED_DOMAINS),
                 )
-            ),
-            vol.Optional(
-                CONF_DELETE_DEVICES,
-                default=[],
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=remote_options,
-                    multiple=True,
-                    mode=dropdown_mode,
-                )
-            ),
-            vol.Optional(
-                CONF_TRIGGER_RESYNC,
-                default=False,
-            ): selector.BooleanSelector() if hasattr(selector, "BooleanSelector") else bool,
-            vol.Optional(
-                CONF_POLLING_INTERVAL,
-                default=options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL),
-            ): vol.All(vol.Coerce(int), vol.Range(min=MIN_POLLING_INTERVAL, max=MAX_POLLING_INTERVAL)),
-            vol.Optional(
-                CONF_AUTO_SYNC_WEBHOOKS,
-                default=options.get(CONF_AUTO_SYNC_WEBHOOKS, DEFAULT_AUTO_SYNC_WEBHOOKS),
-            ): bool,
-            vol.Optional(
-                CONF_TIMEOUT,
-                default=options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
-            ): int,
-        })
+            )
+        )
+
+        if ha_section is not None:
+            data_schema = vol.Schema({
+                vol.Optional(
+                    CONF_ENTITIES,
+                    default=default_selected,
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=unified_options,
+                        multiple=True,
+                        custom_value=True,
+                        mode=dropdown_mode,
+                    )
+                ),
+                vol.Optional("advanced_settings"): ha_section(
+                    vol.Schema({
+                        vol.Optional(
+                            CONF_POLLING_INTERVAL,
+                            default=default_polling,
+                        ): vol.All(
+                            vol.Coerce(int),
+                            vol.Range(min=MIN_POLLING_INTERVAL, max=MAX_POLLING_INTERVAL),
+                        ),
+                        vol.Optional(
+                            CONF_TIMEOUT,
+                            default=default_timeout,
+                        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=60)),
+                    }),
+                    {"collapsed": True},
+                ),
+            })
+        else:
+            data_schema = vol.Schema({
+                vol.Optional(
+                    CONF_ENTITIES,
+                    default=default_selected,
+                ): unified_selector,
+                vol.Optional(
+                    CONF_DELETE_DEVICES,
+                    default=[],
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=remote_options,
+                        multiple=True,
+                        custom_value=True,
+                        mode=dropdown_mode,
+                    )
+                ),
+                vol.Optional(
+                    CONF_TRIGGER_RESYNC,
+                    default=default_trigger,
+                ): selector.BooleanSelector() if hasattr(selector, "BooleanSelector") else bool,
+                vol.Optional(
+                    CONF_POLLING_INTERVAL,
+                    default=default_polling,
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=MIN_POLLING_INTERVAL, max=MAX_POLLING_INTERVAL),
+                ),
+                vol.Optional(
+                    CONF_AUTO_SYNC_WEBHOOKS,
+                    default=default_auto_sync,
+                ): bool,
+                vol.Optional(
+                    CONF_TIMEOUT,
+                    default=default_timeout,
+                ): int,
+            })
 
         return self.async_show_form(
             step_id="init",

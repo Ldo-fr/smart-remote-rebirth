@@ -58,15 +58,25 @@
   "options": {
     "step": {
       "init": {
-        "title": "Smart Remote Rebirth Options",
-        "description": "Configure operational settings for your Smart Remote.",
+        "title": "Smart Remote Configuration",
+        "description": "Manage devices and buttons installed on your remote:\n• Click the cross (✕) next to an item to remove it.\n• Click inside the list to search and add a Home Assistant entity.",
         "data": {
-          "entities": "Entities exposed on the remote",
+          "entities": "Installed items on the remote",
           "delete_devices": "Remote devices to permanently delete",
           "trigger_resync": "Trigger immediate resync to remote",
           "polling_interval": "Polling interval (seconds)",
           "auto_sync_webhooks": "Automatically synchronize webhooks",
           "timeout": "Request timeout (seconds)"
+        },
+        "sections": {
+          "advanced_settings": {
+            "name": "Advanced settings",
+            "description": "Technical communication settings for the remote.",
+            "data": {
+              "polling_interval": "Polling interval (seconds)",
+              "timeout": "Request timeout (seconds)"
+            }
+          }
         }
       }
     }

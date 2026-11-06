@@ -756,9 +756,8 @@ async def test_options_flow_form_rendering_with_selectors() -> None:
             assert def_val == ["light.living_room_ceiling", "switch.kitchen_socket"]
             break
     assert entity_val is not None
-    assert isinstance(entity_val, selector.EntitySelector)
+    assert isinstance(entity_val, (selector.EntitySelector, selector.SelectSelector))
     assert entity_val.config.multiple is True
-    assert entity_val.config.domain == DEFAULT_EXPOSED_DOMAINS
 
     # 2. Vérification de CONF_TRIGGER_RESYNC
     trigger_found = False
@@ -975,15 +974,25 @@ async def test_options_flow_delete_remote_devices() -> None:
     form = await handler.async_step_init(None)
     assert form["type"] == FlowResultType.FORM
     schema = form["data_schema"].schema
-    delete_sel = None
+    entities_sel = None
+    entities_def = None
     for k, v in schema.items():
-        if getattr(k, "schema", None) == CONF_DELETE_DEVICES:
-            delete_sel = v
+        if getattr(k, "schema", None) == CONF_ENTITIES:
+            entities_sel = v
+            entities_def = k.default() if callable(getattr(k, "default", None)) else getattr(k, "default", None)
             break
-    assert delete_sel is not None
-    assert len(delete_sel.config.options) == 2
-    assert delete_sel.config.options[0]["value"] == "sevenhugs.control.hue:spot1"
-    assert delete_sel.config.options[0]["label"] == "Hue Spot 1 (lights)"
+    assert entities_sel is not None
+    assert entities_def == ["sevenhugs.control.hue:spot1", "sevenhugs.control.groups:934fdf6a"]
+    assert entities_sel.config.options[0]["value"] == "sevenhugs.control.hue:spot1"
+    assert entities_sel.config.options[0]["label"] == "📟 Hue Spot 1 (lights)"
+
+    # Simulation du retrait de Hue Spot 1 (croix ✕) et de l'ajout de light.salon
+    save_res = await handler.async_step_init({
+        CONF_ENTITIES: ["sevenhugs.control.groups:934fdf6a", "light.salon"],
+    })
+    assert save_res["type"] == FlowResultType.CREATE_ENTRY
+    assert save_res["data"][CONF_ENTITIES] == ["light.salon"]
+    assert save_res["data"][CONF_DELETE_DEVICES] == ["sevenhugs.control.hue:spot1"]
 
     # Test de client.async_delete_remote_items
     from custom_components.smart_remote_rebirth.client import AsyncSmartRemoteClient

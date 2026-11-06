@@ -53,7 +53,7 @@ jobs:
         uses: astral-sh/ruff-action@v3
         with:
           args: "check"
-          src: "custom_components/sevenhugs_smart_remote"
+          src: "custom_components/smart_remote_rebirth"
 
   test:
     name: Run Unit & Integration Tests

@@ -34,7 +34,7 @@ jobs:
           import re
           import subprocess
 
-          manifest_path = "custom_components/sevenhugs_smart_remote/manifest.json"
+          manifest_path = "custom_components/smart_remote_rebirth/manifest.json"
           with open(manifest_path, "r", encoding="utf-8") as f:
               manifest = json.load(f)
 
@@ -101,14 +101,14 @@ jobs:
       - name: Build release zip archive
         run: |
           cd custom_components
-          zip -r ../sevenhugs_smart_remote.zip sevenhugs_smart_remote -x "*__pycache__*" "*.pyc"
+          zip -r ../smart_remote_rebirth.zip smart_remote_rebirth -x "*__pycache__*" "*.pyc"
           cd ..
 
       - name: Commit version bump to main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add custom_components/sevenhugs_smart_remote/manifest.json
+          git add custom_components/smart_remote_rebirth/manifest.json
           git commit -m "chore(release): bump version to ${{ steps.versioning.outputs.new_version }} [skip ci]"
           git push origin main || echo "::warning::Direct push to main was restricted by branch protection. Proceeding with tag and release creation..."
 
@@ -123,7 +123,7 @@ jobs:
           if [ "${{ steps.versioning.outputs.is_prerelease }}" = "true" ]; then
             FLAGS="--prerelease"
           fi
-          gh release create "${{ steps.versioning.outputs.tag_name }}" sevenhugs_smart_remote.zip \
+          gh release create "${{ steps.versioning.outputs.tag_name }}" smart_remote_rebirth.zip \
             --title "Release ${{ steps.versioning.outputs.tag_name }}" \
             --generate-notes \
             $FLAGS
