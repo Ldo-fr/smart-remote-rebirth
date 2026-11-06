@@ -12,6 +12,7 @@ import logging
 import os
 import sys
 from typing import Any
+
 import aiohttp
 
 # Assure la disponibilité des dépendances vendorisées dans .pylib si présent

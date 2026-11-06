@@ -12,8 +12,8 @@ import inspect
 import logging
 from typing import Any
 
-from aiohttp import web
 import voluptuous as vol
+from aiohttp import web
 
 try:
     from homeassistant.components import webhook
@@ -283,9 +283,7 @@ async def async_handle_webhook(
 
     # 4. Résolution de l'entry_id, du remote_id et du coordinateur
     entry_id = (
-        webhook_id[len(WEBHOOK_ID_PREFIX) :]
-        if webhook_id.startswith(WEBHOOK_ID_PREFIX)
-        else webhook_id
+        webhook_id.removeprefix(WEBHOOK_ID_PREFIX)
     )
 
     remote_id = ""

@@ -223,7 +223,7 @@ class AsyncSmartRemoteClient:
                 if resp1.status != 200:
                     raise SevenhugsAuthError(f"Pair-Verify M1 a échoué avec le statut HTTP {resp1.status}")
                 raw_m2 = await resp1.read()
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             raise SevenhugsConnectionError(f"Erreur réseau lors de Pair-Verify M1: {err}") from err
 
         # 3. Traitement de M2
@@ -282,7 +282,7 @@ class AsyncSmartRemoteClient:
                 if resp3.status != 200:
                     raise SevenhugsAuthError(f"Pair-Verify M3 rejeté avec statut HTTP {resp3.status}")
                 raw_m4 = await resp3.read()
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             raise SevenhugsConnectionError(f"Erreur réseau lors de Pair-Verify M3: {err}") from err
 
         # 5. Traitement de M4
@@ -396,7 +396,7 @@ class AsyncSmartRemoteClient:
 
                 decrypted = decrypt_api_payload(self._session_read_key, resp_bytes)
                 return json.loads(decrypted.decode("utf-8"))
-        except (aiohttp.ClientError, asyncio.TimeoutError, TimeoutError) as err:
+        except (aiohttp.ClientError, TimeoutError) as err:
             self._is_verified = False
             raise SevenhugsConnectionError(f"Erreur réseau lors de {method} {path}: {err}") from err
 
@@ -424,7 +424,7 @@ class AsyncSmartRemoteClient:
                 if resp.status != 200:
                     raise SevenhugsConnectionError(f"Pair-Setup M1 a retourné le statut HTTP {resp.status}")
                 raw_m2 = await resp.read()
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             raise SevenhugsConnectionError(f"Erreur réseau lors de Pair-Setup M1: {err}") from err
 
         m2_tlv = decode_tlv(raw_m2)
@@ -468,7 +468,7 @@ class AsyncSmartRemoteClient:
                 if resp3.status != 200:
                     raise SevenhugsAuthError(f"Pair-Setup M3 rejeté avec statut HTTP {resp3.status}")
                 raw_m4 = await resp3.read()
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             raise SevenhugsConnectionError(f"Erreur réseau lors de Pair-Setup M3: {err}") from err
 
         m4_tlv = decode_tlv(raw_m4)
@@ -520,7 +520,7 @@ class AsyncSmartRemoteClient:
                 if resp5.status != 200:
                     raise SevenhugsAuthError(f"Pair-Setup M5 rejeté avec statut HTTP {resp5.status}")
                 raw_m6 = await resp5.read()
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             raise SevenhugsConnectionError(f"Erreur réseau lors de Pair-Setup M5: {err}") from err
 
         m6_tlv = decode_tlv(raw_m6)
@@ -608,7 +608,7 @@ class AsyncSmartRemoteClient:
                     cookie_sid = r.headers["Set-Cookie"].split(";")[0]
                 elif hasattr(r, "cookies") and "7HUGS_SID" in r.cookies:
                     cookie_sid = f"7HUGS_SID={r.cookies['7HUGS_SID'].value}"
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+        except (TimeoutError, aiohttp.ClientError) as err:
             raise SevenhugsConnectionError(f"Impossible d'accéder à l'URL d'assistant {setup_url}: {err}") from err
 
         async def post_lua(payload_data: dict) -> tuple[int, dict]:

@@ -11,10 +11,10 @@ et aux cycles de veille du matériel, et l'intégration avec le webhook local.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
 import inspect
 import json
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 try:
@@ -42,7 +42,6 @@ try:
         CONF_ENTITIES,
         CONF_REMOTE_ID,
         CONF_SERIAL_NUMBER,
-        DEFAULT_EXPOSED_DOMAINS,
         DOMAIN,
     )
     from .webhook import async_generate_webhook_url
@@ -56,10 +55,11 @@ except (ImportError, ValueError):
         CONF_ENTITIES,
         CONF_REMOTE_ID,
         CONF_SERIAL_NUMBER,
-        DEFAULT_EXPOSED_DOMAINS,
         DOMAIN,
     )
-    from custom_components.sevenhugs_smart_remote.webhook import async_generate_webhook_url
+    from custom_components.sevenhugs_smart_remote.webhook import (
+        async_generate_webhook_url,
+    )
 
 _LOGGER = logging.getLogger(__name__)
 
