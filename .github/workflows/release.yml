@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -29,14 +30,17 @@ jobs:
         id: versioning
         env:
           REPO_SLUG: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           python3 - << 'EOF'
           import json
           import os
           import re
           import subprocess
+          import sys
 
           repo_slug = os.environ.get("REPO_SLUG") or "Ldo-fr/smart-remote-rebirth"
+          event_name = os.environ.get("EVENT_NAME") or "push"
           repo_url = f"https://github.com/{repo_slug}"
 
           manifest_path = "custom_components/smart_remote_rebirth/manifest.json"
@@ -108,8 +112,11 @@ jobs:
               "other": ("🔧 Internal, Refactoring & Tests", []),
           }
 
+          RELEASE_TRIGGER_TYPES = {"feat", "fix", "perf", "refactor", "revert"}
+
           has_breaking = False
           has_feat = False
+          has_release_trigger = (event_name == "workflow_dispatch")
           total_changes = 0
 
           CONVENTIONAL_RE = re.compile(
@@ -145,6 +152,9 @@ jobs:
                   c_type = "other"
                   c_scope = ""
                   desc = subject
+
+              if is_breaking_commit or c_type in RELEASE_TRIGGER_TYPES:
+                  has_release_trigger = True
 
               if desc:
                   desc = desc[0].upper() + desc[1:]
@@ -186,6 +196,15 @@ jobs:
                   CATEGORIES["other"][1].append(entry_text)
 
               total_changes += 1
+
+          github_output = os.environ.get("GITHUB_OUTPUT", "")
+          if not has_release_trigger:
+              print("No release-triggering commits (feat, fix, perf, refactor, revert, or breaking) found since last tag.")
+              print("Accumulating non-code commits (docs/test/ci/chore) for the next release.")
+              if github_output:
+                  with open(github_output, "a", encoding="utf-8") as out:
+                      out.write("should_release=false\n")
+              sys.exit(0)
 
           if has_breaking:
               major += 1
@@ -247,21 +266,23 @@ jobs:
           print(release_notes_content)
           print("-------------------------------")
 
-          github_output = os.environ.get("GITHUB_OUTPUT", "")
           if github_output:
               with open(github_output, "a", encoding="utf-8") as out:
+                  out.write("should_release=true\n")
                   out.write(f"new_version={new_version}\n")
                   out.write(f"tag_name={tag_name}\n")
                   out.write(f"is_prerelease={is_prerelease}\n")
           EOF
 
       - name: Build release zip archive
+        if: steps.versioning.outputs.should_release == 'true'
         run: |
           cd custom_components
           zip -r ../smart_remote_rebirth.zip smart_remote_rebirth -x "*__pycache__*" "*.pyc"
           cd ..
 
       - name: Commit version bump to main
+        if: steps.versioning.outputs.should_release == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -270,11 +291,13 @@ jobs:
           git push origin main || echo "::warning::Direct push to main was restricted by branch protection. Proceeding with tag and release creation..."
 
       - name: Create and push Git tag
+        if: steps.versioning.outputs.should_release == 'true'
         run: |
           git tag ${{ steps.versioning.outputs.tag_name }}
           git push origin ${{ steps.versioning.outputs.tag_name }}
 
       - name: Publish GitHub Release
+        if: steps.versioning.outputs.should_release == 'true'
         run: |
           FLAGS="--latest"
           if [ "${{ steps.versioning.outputs.is_prerelease }}" = "true" ]; then
