@@ -25,8 +25,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Determine next version and update manifest
+      - name: Determine next version, update manifest and generate release notes
         id: versioning
+        env:
+          REPO_SLUG: ${{ github.repository }}
         run: |
           python3 - << 'EOF'
           import json
@@ -34,68 +36,223 @@ jobs:
           import re
           import subprocess
 
+          repo_slug = os.environ.get("REPO_SLUG") or "Ldo-fr/smart-remote-rebirth"
+          repo_url = f"https://github.com/{repo_slug}"
+
           manifest_path = "custom_components/smart_remote_rebirth/manifest.json"
           with open(manifest_path, "r", encoding="utf-8") as f:
               manifest = json.load(f)
 
           current_version = manifest.get("version", "0.1.0")
-          # Retirer un éventuel suffixe (-alpha, -beta, etc.) pour extraire le semver numérique
           base_match = re.match(r"^(\d+)\.(\d+)\.(\d+)", current_version)
           if base_match:
               major, minor, patch = map(int, base_match.groups())
           else:
               major, minor, patch = 0, 1, 0
 
-          # Récupérer les messages de commit depuis le dernier tag ou les 10 derniers commits
+          # Find the latest tag to build the commit range
+          last_tag = ""
           try:
               last_tag = subprocess.check_output(
                   ["git", "describe", "--tags", "--abbrev=0"],
                   stderr=subprocess.DEVNULL,
-                  text=True
+                  text=True,
               ).strip()
               log_range = f"{last_tag}..HEAD"
           except Exception:
               log_range = "HEAD~1..HEAD"
 
+          # Extract structured commits using ASCII record/unit separators
+          raw_log = ""
           try:
-              commit_logs = subprocess.check_output(
-                  ["git", "log", log_range, "--pretty=%B"],
-                  text=True
+              raw_log = subprocess.check_output(
+                  ["git", "log", log_range, "--pretty=format:%H%x1f%h%x1f%s%x1f%b%x1e"],
+                  text=True,
               )
           except Exception:
-              commit_logs = ""
+              raw_log = ""
 
-          head_msg = subprocess.check_output(["git", "log", "-1", "--pretty=%B"], text=True)
-          all_text = f"{commit_logs}\n{head_msg}".lower()
+          if not raw_log.strip():
+              raw_log = subprocess.check_output(
+                  ["git", "log", "-1", "--pretty=format:%H%x1f%h%x1f%s%x1f%b%x1e"],
+                  text=True,
+              )
 
-          # Détection du type d'incrémentation selon Conventional Commits
-          if "breaking change" in all_text or re.search(r"^[a-z]+(\([^\)]+\))?!:", all_text, re.MULTILINE):
+          SCOPE_LABELS = {
+              "config_flow": "Configuration & Pairing UI",
+              "options_flow": "Options & Entity Selection UI",
+              "coordinator": "Connectivity & Deep Sleep",
+              "client": "HTTP Client & Session",
+              "crypto": "Cryptography & Pairing Protocol",
+              "lua_injector": "Remote Screen & Lua Sync",
+              "webhook": "Local Webhooks & Events",
+              "entities": "Home Assistant Entities",
+              "sensor": "Telemetry Sensors",
+              "binary_sensor": "Connectivity Sensor",
+              "button": "Diagnostic Buttons",
+              "branding": "Branding & Manifest",
+              "manifest": "Integration Manifest",
+              "localization": "Translations (EN/FR)",
+              "translations": "Translations (EN/FR)",
+              "prd": "Product Requirements (PRD)",
+              "docs": "Documentation",
+              "release": "CI/CD & Release Automation",
+              "ci": "Continuous Integration",
+          }
+
+          CATEGORIES = {
+              "breaking": ("⚠️ Breaking Changes", []),
+              "feat": ("✨ New Features", []),
+              "fix": ("🐛 Bug Fixes & Performance", []),
+              "docs": ("📚 Documentation", []),
+              "other": ("🔧 Internal, Refactoring & Tests", []),
+          }
+
+          has_breaking = False
+          has_feat = False
+          total_changes = 0
+
+          CONVENTIONAL_RE = re.compile(
+              r"^(?P<type>[a-zA-Z]+)(?:\((?P<scope>[^\)]+)\))?(?P<breaking>!)?:\s*(?P<desc>.+)$"
+          )
+
+          for record in raw_log.split("\x1e"):
+              record = record.strip()
+              if not record:
+                  continue
+              parts = record.split("\x1f")
+              if len(parts) < 3:
+                  continue
+              full_hash = parts[0].strip()
+              short_hash = parts[1].strip()
+              subject = parts[2].strip()
+              body = parts[3].strip() if len(parts) > 3 else ""
+
+              # Skip automated release version bump commits
+              if "[skip ci]" in subject.lower() or subject.lower().startswith("chore(release):"):
+                  continue
+
+              m = CONVENTIONAL_RE.match(subject)
+              is_breaking_commit = "breaking change" in body.lower()
+
+              if m:
+                  c_type = m.group("type").lower()
+                  c_scope = (m.group("scope") or "").strip().lower()
+                  if m.group("breaking"):
+                      is_breaking_commit = True
+                  desc = m.group("desc").strip()
+              else:
+                  c_type = "other"
+                  c_scope = ""
+                  desc = subject
+
+              if desc:
+                  desc = desc[0].upper() + desc[1:]
+
+              scope_label = SCOPE_LABELS.get(
+                  c_scope,
+                  c_scope.replace("_", " ").replace("-", " ").title() if c_scope else "",
+              )
+
+              commit_link = f"([`{short_hash}`]({repo_url}/commit/{full_hash}))"
+              if scope_label:
+                  line = f"- **{scope_label}**: {desc} {commit_link}"
+              else:
+                  line = f"- {desc} {commit_link}"
+
+              # Parse optional multi-line commit body into clean sub-bullets
+              body_lines = []
+              for b_line in body.splitlines():
+                  b_clean = b_line.strip()
+                  if not b_clean or b_clean.lower().startswith("signed-off-by:") or b_clean.lower().startswith("co-authored-by:"):
+                      continue
+                  if b_clean.startswith(("- ", "* ")):
+                      b_clean = b_clean[2:].strip()
+                  body_lines.append(f"  - {b_clean}")
+
+              entry_text = "\n".join([line] + body_lines)
+
+              if is_breaking_commit:
+                  has_breaking = True
+                  CATEGORIES["breaking"][1].append(entry_text)
+              elif c_type == "feat":
+                  has_feat = True
+                  CATEGORIES["feat"][1].append(entry_text)
+              elif c_type in ("fix", "perf"):
+                  CATEGORIES["fix"][1].append(entry_text)
+              elif c_type == "docs":
+                  CATEGORIES["docs"][1].append(entry_text)
+              else:
+                  CATEGORIES["other"][1].append(entry_text)
+
+              total_changes += 1
+
+          if has_breaking:
               major += 1
               minor = 0
               patch = 0
-          elif re.search(r"^feat(\([^\)]+\))?:", all_text, re.MULTILINE):
+              release_banner = "⚠️ Breaking Release"
+          elif has_feat:
               minor += 1
               patch = 0
+              release_banner = "🚀 Feature Release"
           else:
               patch += 1
+              release_banner = "🩹 Maintenance & Patch Release"
 
           new_version = f"{major}.{minor}.{patch}"
+          tag_name = f"v{new_version}"
           is_prerelease = "true" if any(pre in new_version for pre in ["-alpha", "-beta", "-rc"]) else "false"
 
-          print(f"Version actuelle : {current_version}")
-          print(f"Nouvelle version : {new_version} (prerelease={is_prerelease})")
+          print(f"Current version : {current_version}")
+          print(f"New version     : {new_version} (prerelease={is_prerelease})")
 
           manifest["version"] = new_version
           with open(manifest_path, "w", encoding="utf-8") as f:
               json.dump(manifest, f, indent=2)
               f.write("\n")
 
-          # Exporter pour les étapes GitHub Actions suivantes
+          # Build user-friendly Markdown release notes
+          notes_lines = [
+              f"## {release_banner} — `{tag_name}`",
+              "",
+          ]
+
+          change_word = "change" if total_changes == 1 else "changes"
+          if last_tag:
+              notes_lines.append(f"This release includes **{total_changes} {change_word}** since `{last_tag}`.")
+          else:
+              notes_lines.append(f"This release includes **{total_changes} {change_word}**.")
+          notes_lines.append("")
+
+          for key in ("breaking", "feat", "fix", "docs", "other"):
+              title, items = CATEGORIES[key]
+              if items:
+                  notes_lines.append(f"### {title}")
+                  notes_lines.extend(items)
+                  notes_lines.append("")
+
+          if last_tag:
+              notes_lines.extend([
+                  "---",
+                  "",
+                  f"**Full Changelog**: [`{last_tag}...{tag_name}`]({repo_url}/compare/{last_tag}...{tag_name})",
+              ])
+
+          release_notes_content = "\n".join(notes_lines).strip() + "\n"
+          with open("release_notes.md", "w", encoding="utf-8") as nf:
+              nf.write(release_notes_content)
+
+          print("--- Generated Release Notes ---")
+          print(release_notes_content)
+          print("-------------------------------")
+
           github_output = os.environ.get("GITHUB_OUTPUT", "")
-          with open(github_output, "a", encoding="utf-8") as out:
-              out.write(f"new_version={new_version}\n")
-              out.write(f"tag_name=v{new_version}\n")
-              out.write(f"is_prerelease={is_prerelease}\n")
+          if github_output:
+              with open(github_output, "a", encoding="utf-8") as out:
+                  out.write(f"new_version={new_version}\n")
+                  out.write(f"tag_name={tag_name}\n")
+                  out.write(f"is_prerelease={is_prerelease}\n")
           EOF
 
       - name: Build release zip archive
@@ -125,7 +282,7 @@ jobs:
           fi
           gh release create "${{ steps.versioning.outputs.tag_name }}" smart_remote_rebirth.zip \
             --title "Release ${{ steps.versioning.outputs.tag_name }}" \
-            --generate-notes \
+            --notes-file release_notes.md \
             $FLAGS
 
           # Convertir les releases antérieures en versions stables pour que HACS les indexe correctement
@@ -134,4 +291,3 @@ jobs:
           gh release edit v0.2.4 --prerelease=false || true
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-
