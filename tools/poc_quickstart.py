@@ -171,10 +171,10 @@ async def run_demo(target_ip: str | None = None):
         print("=" * 75)
         print("\n👉 POUR L'INSTALLER SUR VOTRE VRAI HOME ASSISTANT DÈS MAINTENANT :")
         print(f"   Copiez simplement le dossier :")
-        print(f"     {os.path.abspath('custom_components/sevenhugs_smart_remote')}")
+        print(f"     {os.path.abspath('custom_components/smart_remote_rebirth')}")
         print(f"   Dans votre dossier Home Assistant :")
-        print(f"     /config/custom_components/sevenhugs_smart_remote")
-        print(f"   Puis redémarrez Home Assistant et ajoutez 'Sevenhugs Smart Remote' dans les intégrations !")
+        print(f"     /config/custom_components/smart_remote_rebirth")
+        print(f"   Puis redémarrez Home Assistant et ajoutez 'Smart Remote Rebirth' dans les intégrations !")
         print("=" * 75 + "\n")
 
         # Déchargement propre

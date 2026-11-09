@@ -116,7 +116,7 @@ OPTION A : INTÉGRATION HACS PURE (PYTHON NATIF DANS HOME ASSISTANT CORE)
        |               HOME ASSISTANT CORE RUNTIME                   |
        |                                                             |
        |  +-------------------------------------------------------+  |
-       |  |     custom_components/sevenhugs_smart_remote          |  |
+       |  |     custom_components/smart_remote_rebirth            |  |
        |  |                                                       |  |
        |  |  +--------------------+    +-----------------------+  |  |
        |  |  |    Config Flow     |    | DataUpdateCoordinator |  |  |
@@ -174,7 +174,7 @@ OPTION B : ARCHITECTURE HYBRIDE (ADD-ON DOCKER DAEMON + HACS LÉGÈRE)
 ### 2.1. Description formelle des architectures candidates
 
 #### 2.1.1. Option A : Intégration HACS pure (Composant Python natif asynchrone)
-Dans cette architecture, l'ensemble de la logique applicative est encapsulé dans un unique composant personnalisé (`custom_component`) écrit en Python moderne ($3.11+$), installé dans le répertoire `custom_components/sevenhugs_smart_remote/` de Home Assistant :
+Dans cette architecture, l'ensemble de la logique applicative est encapsulé dans un unique composant personnalisé (`custom_component`) écrit en Python moderne ($3.11+$), installé dans le répertoire `custom_components/smart_remote_rebirth/` de Home Assistant :
 - **Exécution directe dans l'Event Loop de Home Assistant Core** : Les requêtes HTTP asynchrones sont gérées par `aiohttp.ClientSession`.
 - **Délégation CPU non-bloquante** : Les calculs cryptographiques lourds (SRP-6a 3072 bits) sont confiés au pool de threads worker via `hass.async_add_executor_job(...)`.
 - **Réception d'événements native** : Les commandes transmises par la télécommande utilisent le gestionnaire de Webhooks natif de Home Assistant (`hass.components.webhook`), qui écoute sur le port existant 8123 de l'instance.
@@ -408,8 +408,8 @@ Dans le cas où le réseau local bloque le trafic multicast mDNS (réseaux d'ent
    {
      "entry_id": "7hugs_a06fe048b48b260139",
      "version": 1,
-     "domain": "sevenhugs_smart_remote",
-     "title": "Sevenhugs Smart Remote (5726)",
+     "domain": "smart_remote_rebirth",
+     "title": "Smart Remote (5726)",
      "data": {
        "host": "192.168.1.50",
        "port": 80,
@@ -494,7 +494,7 @@ Accessible via le bouton **Configurer** de l'intégration dans Home Assistant, l
 - **Bouton d'action de synchronisation** :
   Un bouton à bascule permet de choisir entre :
   - *Synchronisation automatique instantanée* : Dès qu'une entité sélectionnée change d'état ou qu'une modification survient, le carrousel de la télécommande est mis à jour.
-  - *Synchronisation manuelle* : La télécommande n'est mise à jour que lors du déclenchement du bouton dédié `button.sevenhugs_smart_remote_sync`.
+  - *Synchronisation manuelle* : La télécommande n'est mise à jour que lors du déclenchement du bouton dédié `button.smart_remote_rebirth_sync`.
 
 #### 3.2.2. Gestion du carrousel de la télécommande (`carousel_order`)
 La télécommande organise son interface sous la forme d'un carrousel vertical ou horizontal d'écrans. Le flux d'options permet d'organiser cette disposition :
@@ -839,7 +839,7 @@ L'intégration enregistre automatiquement les entités suivantes au sein de Home
 L'architecture des répertoires et des modules respecte scrupuleusement les exigences des composants personnalisés Home Assistant ainsi que les critères d'excellence du **Quality Scale** (typage strict `mypy`, documentation exhaustive, gestion asynchrone, localisation multilingue) :
 
 ```text
-custom_components/sevenhugs_smart_remote/
+custom_components/smart_remote_rebirth/
 ├── __init__.py                # Point d'entrée : async_setup_entry, async_unload_entry, rechargement
 ├── manifest.json             # Déclaration formelle HACS/HA, intégration zeroconf, dépendances
 ├── const.py                  # Constantes (DOMAIN, KEYS, URLS, DEFAULT_SETTINGS, TIMEOUTS)
@@ -847,19 +847,16 @@ custom_components/sevenhugs_smart_remote/
 ├── coordinator.py            # SevenhugsDataUpdateCoordinator (gestion du polling et veille)
 ├── client.py                 # AsyncSmartRemoteClient (client aiohttp Keep-Alive, cryptage ChaCha20)
 ├── crypto.py                 # Primitives cryptographiques (SRP-6a RFC 5054, Ed25519, X25519, TLV8)
+├── lua_injector.py           # Automatisation de l'assistant Lua setup.lua (/api/devices/.../setup)
 ├── entity.py                 # SevenhugsBaseEntity (gestion du DeviceRegistry et liaison coordinator)
-├── sensor.py                 # Plateforme Sensor (batterie, RSSI Wi-Fi, écran actif)
-├── binary_sensor.py          # Plateforme Binary Sensor (chargeur connecté, connectivité réseau)
-├── button.py                 # Plateforme Button (forcer synchro, forcer sauvegarde)
-├── switch.py                 # Plateforme Switch (activation auto-sync, verrouillage d'écran)
-├── webhook.py                # Gestionnaire de Webhook entrant (/api/webhook/sevenhugs_{entry_id})
-├── services.py               # Services HA personnalisés (push_custom_ui, backup_config, restore_config)
-├── services.yaml             # Schémas et descriptions des services pour l'interface utilisateur
+├── sensor.py                 # Plateforme Sensor (état de connexion, modèle matériel)
+├── binary_sensor.py          # Plateforme Binary Sensor (connectivité réseau en ligne)
+├── button.py                 # Plateforme Button (forcer synchro, ping, sauvegarde)
+├── webhook.py                # Gestionnaire de Webhook entrant (/api/webhook/smart_remote_{entry_id})
 ├── strings.json              # Chaînes de caractères sources en anglais et modèles de formulaires
-├── translations/             # Fichiers de localisation multilingues
-│   ├── en.json               # Localisation anglaise complète
-│   └── fr.json               # Localisation française complète
-└── diagnostics.py            # Plateforme de diagnostic (extraction anonymisée pour support de bugs)
+└── translations/             # Fichiers de localisation multilingues
+    ├── en.json               # Localisation anglaise complète
+    └── fr.json               # Localisation française complète
 ```
 
 Fichiers de gouvernance racine :
@@ -872,8 +869,8 @@ LICENSE                       # Licence Open Source (Apache 2.0 / MIT)
 #### Fichier `manifest.json` normatif :
 ```json
 {
-  "domain": "sevenhugs_smart_remote",
-  "name": "Sevenhugs Smart Remote",
+  "domain": "smart_remote_rebirth",
+  "name": "Smart Remote Rebirth",
   "codeowners": ["@Ldo-fr"],
   "config_flow": true,
   "documentation": "https://github.com/Ldo-fr/smart-remote-rebirth",
@@ -881,14 +878,12 @@ LICENSE                       # Licence Open Source (Apache 2.0 / MIT)
   "dependencies": ["webhook"],
   "integration_type": "hub",
   "iot_class": "local_polling",
-  "version": "1.0.0",
-  "requirements": [
-    "cryptography>=41.0.0"
-  ],
+  "version": "0.4.0",
+  "requirements": [],
   "zeroconf": [
     {
       "type": "_smart_remote._tcp.local.",
-      "name": "Smart Remote*"
+      "name": "smart remote*"
     }
   ]
 }
@@ -897,7 +892,7 @@ LICENSE                       # Licence Open Source (Apache 2.0 / MIT)
 #### Fichier `hacs.json` normatif :
 ```json
 {
-  "name": "Sevenhugs Smart Remote",
+  "name": "Smart Remote Rebirth",
   "render_readme": true,
   "homeassistant": "2024.1.0"
 }
@@ -994,7 +989,7 @@ Ce module regroupe les fonctions cryptographiques pures sans aucune dépendance 
    - Fonction `encrypt_api_payload(key: bytes, plaintext: bytes) -> bytes` utilisant le nonce fixe universel `b"\x00\x00\x00\x00HuMiThFr"`.
    - Renvoie directement `ciphertext || poly1305_tag_16_bytes` (corps HTTP monolithique conforme Sevenhugs).
 
-##### Code complet de référence pour `custom_components/sevenhugs_smart_remote/crypto.py` :
+##### Code complet de référence pour `custom_components/smart_remote_rebirth/crypto.py` :
 ```python
 """Primitives cryptographiques pour Sevenhugs Smart Remote (RFC 5054 SRP-6a, Ed25519, TLV8)."""
 
@@ -1160,7 +1155,7 @@ La classe `AsyncSmartRemoteClient` encapsule l'intégralité du dialogue réseau
   - Étape 2 : `GET` sur l'URL d'assistant pour capturer le cookie `7HUGS_SID`.
   - Étape 3 : Séquence d'appels `POST` non chiffrés avec cookie : `connect` $\rightarrow$ `main_page` $\rightarrow$ boucle sur `add_choice` / `advanced_add_edit` / `post_advanced_add_edit` pour chaque bouton $\rightarrow$ validation finale `done`.
 
-##### Code complet de référence pour `custom_components/sevenhugs_smart_remote/client.py` :
+##### Code complet de référence pour `custom_components/smart_remote_rebirth/client.py` :
 ```python
 """Client HTTP asynchrone haute résilience pour Sevenhugs Smart Remote."""
 
@@ -1427,11 +1422,11 @@ La classe `SevenhugsDataUpdateCoordinator` hérite de `homeassistant.helpers.upd
 #### 4.2.5. Module `webhook.py` : Réception locale sécurisée et dispatch d'événements
 - Enregistrement du point d'entrée lors du chargement de l'intégration :
   ```python
-  webhook_id = f"sevenhugs_{entry.entry_id}"
+  webhook_id = f"smart_remote_{entry.entry_id}"
   webhook.async_register(
       hass,
       DOMAIN,
-      "Sevenhugs Smart Remote Trigger",
+      "Smart Remote Rebirth Trigger",
       webhook_id,
       async_handle_webhook_payload,
       local_only=True  # Sécurité stricte : rejette tout appel venant de l'extérieur du LAN
@@ -1442,7 +1437,7 @@ La classe `SevenhugsDataUpdateCoordinator` hérite de `homeassistant.helpers.upd
   2. Si l'action correspond à un service valide (ex: `light.toggle`) : Exécution directe via `hass.services.async_call`.
   3. Dans tous les cas : Émission d'un événement sur le bus système Home Assistant :
      ```python
-     hass.bus.async_fire("sevenhugs_button_pressed", {
+     hass.bus.async_fire("smart_remote_button_pressed", {
          "entry_id": entry.entry_id,
          "remote_id": entry.data["remote_id"],
          "payload": data

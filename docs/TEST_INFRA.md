@@ -88,10 +88,10 @@ L'environnement de test fonctionne de manière 100 % autonome, sans dépendre d'
 ## 3. Dérivation des Sorties Attendues (Source Faisant Foi)
 
 Chaque assertion des tests E2E s'appuie sur une source de spécification formelle :
-1. **Format Webhook** : Conforme à `PROJECT.md § Interface Contracts` et `custom_components/sevenhugs_smart_remote/webhook.py` (`sevenhugs_{entry_id}`).
+1. **Format Webhook** : Conforme à `PROJECT.md § Interface Contracts` et `custom_components/smart_remote_rebirth/webhook.py` (`smart_remote_{entry_id}`).
 2. **Schéma Voluptuous** : Clés obligatoires (`domain`, `action` ou `service`), clés optionnelles (`entity_id`, `data`, `params`, `parameters`), codes de retour HTTP 200 / 400.
 3. **Machine à états Lua** : Séquence extraite de la ROM physique (`/rom/webapp/resources/setup.lua`) et documentée dans `docs/PROTOCOL_AND_API.md § 4.2` (`connect` -> `main_page` -> `add_choice` -> `advanced_add_edit` -> `post_advanced_add_edit` -> `done`).
-4. **Bus d'événements HA** : Déclaration formelle `EVENT_SEVENHUGS_BUTTON_PRESSED = "sevenhugs_button_pressed"` dans `const.py`.
+4. **Bus d'événements HA** : Déclaration formelle `EVENT_SEVENHUGS_BUTTON_PRESSED = "smart_remote_button_pressed"` dans `const.py`.
 
 ---
 
