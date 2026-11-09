@@ -91,7 +91,7 @@ Once the integration is installed and Home Assistant has restarted:
    - Click **Next**. The integration initiates the SRP-6a hardware calculation (~16 seconds).
    - An **8-digit PIN code** (`XXX-XX-XXX`) will appear on the touchscreen of your Smart Remote.
    - Enter this PIN in Home Assistant and validate promptly. *(Note: The remote displays the PIN for about 30 to 45 seconds before putting its screen to sleep. If the screen turns off or the code is rejected, the remote cancels the session: close the dialog and restart pairing to generate a new PIN).*
-4. **All set!** Your remote appears as a device with all its entities (battery, Wi-Fi, charging dock, diagnostic sensors, and action buttons).
+4. **All set!** Your remote appears as a device in Home Assistant with its connectivity status sensor (`connectivity`) and its 3 diagnostic action buttons (`force_sync`, `ping`, `backup_config`).
 
 > [!TIP]
 > Once paired, cryptographic session keys are securely stored in Home Assistant. You will **never need to re-enter a PIN code**, even after restarting Home Assistant or rebooting the remote control.
@@ -104,21 +104,22 @@ The repository includes a standalone demonstration script requiring no external 
 ```bash
 python3 tools/poc_quickstart.py
 ```
-This script boots a mock Sevenhugs server, initializes the Home Assistant component, reads battery telemetry, and simulates a touchscreen button press that turns on a virtual Home Assistant light in under one second.
+This script boots a mock Sevenhugs server, initializes the Home Assistant component, verifies connectivity and hardware metadata, and simulates a touchscreen button press that turns on a virtual Home Assistant light in under one second.
 
 *(You can also test directly with a physical remote on your network: `python3 tools/poc_quickstart.py --ip 192.168.1.XX`).*
 
 ---
 
-## 🛠️ Historical CLI & Reverse-Engineering Tools
+## 🛠️ Reference Documentation & CLI Tools (`docs/` & `tools/`)
 
-For developers and enthusiasts wishing to interact directly with the remote's raw API outside Home Assistant, the repository preserves the original exploration tools in the `tools/` directory:
+For developers and enthusiasts wishing to understand the architecture or interact directly with the remote's raw API outside Home Assistant:
 
+- [**`docs/PRD.md`**](docs/PRD.md): **Product Requirements Document (Single Source of Truth)** — product vision, scope, 4-pillar repository structure, interface contracts (`smart_remote_*`), and roadmap (v0.5 $\rightarrow$ v1.0).
+- [**`docs/PROTOCOL_AND_API.md`**](docs/PROTOCOL_AND_API.md): Full documented protocol specification (SRP-6a 3072-bit, Ed25519, X25519, ChaCha20-Poly1305, `/api/*` endpoints, and `/rom/webapp/resources/setup.lua` assistants).
+- [**`docs/TEST_INFRA.md`**](docs/TEST_INFRA.md): Multi-tier standalone test suite architecture and methodology.
 - [**`tools/pair_and_verify.py`**](tools/pair_and_verify.py): Standalone CLI script for initial pairing and cryptographic handshake.
 - [**`tools/pair_verify.py`**](tools/pair_verify.py): Quick encrypted session check and state dumps extractor.
 - [**`tools/sevenhugs_bridge.py`**](tools/sevenhugs_bridge.py): Local Web gateway and configuration studio.
-- [**`docs/PROTOCOL_AND_API.md`**](docs/PROTOCOL_AND_API.md): Full documented protocol specification (SRP-6a 3072-bit, Ed25519, X25519, ChaCha20-Poly1305, `/api/*` endpoints, and `/rom/webapp/resources/setup.lua` assistants).
-- [**`docs/HOME_ASSISTANT_INTEGRATION_PLAN.md`**](docs/HOME_ASSISTANT_INTEGRATION_PLAN.md): Technical architecture and roadmap document.
 
 ---
 

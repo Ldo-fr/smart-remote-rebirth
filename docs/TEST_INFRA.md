@@ -32,18 +32,18 @@ La validation de la Phase 4 repose sur une stratégie de test boîte-opaque et d
                                     │
 ┌───────────────────────────────────┴────────────────────────────────────┐
 │               Tier 1 : Core Feature Integration Contracts              │
-│  - Webhook Registration & Local Routing (sevenhugs_{entry_id})         │
+│  - Webhook Registration & Local Routing (smart_remote_{entry_id})      │
 │  - Inbound Payload Processing & HA Service Dispatch (async_call)       │
-│  - System Event Bus Emission (sevenhugs_button_pressed)                │
+│  - System Event Bus Emission (smart_remote_button_pressed)             │
 │  - Server-Driven UI Lua Injector Wizard Automation (7HUGS_SID)         │
 │  - Options Flow Entity Selection & Immediate Resync Trigger            │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Tier 1 : Couverture Fonctionnelle Nominale (Core Feature Contracts)
-- **Enregistrement et routage Webhook local** : Inscription conforme auprès de Home Assistant (`local_only=True`, méthodes HTTP `["POST", "PUT"]`, identifiant `sevenhugs_{entry_id}`).
+- **Enregistrement et routage Webhook local** : Inscription conforme auprès de Home Assistant (`local_only=True`, méthodes HTTP `["POST", "PUT"]`, identifiant `smart_remote_{entry_id}`).
 - **Traitement des payloads entrants** : Routage transparent vers les services Home Assistant (`light.turn_on`, `switch.toggle`, `scene.turn_on`, services personnalisés) avec transmission des arguments.
-- **Émission sur le bus d'événements** : Déclenchement de `sevenhugs_button_pressed` avec traçabilité complète (`entry_id`, `remote_id`, `serial_number`, `payload`).
+- **Émission sur le bus d'événements** : Déclenchement de `smart_remote_button_pressed` avec traçabilité complète (`entry_id`, `remote_id`, `serial_number`, `payload`).
 - **Injecteur Server-Driven UI Lua** : Traduction des entités en triggers HTTP et pilotage de la machine à états de l'assistant Lua embarqué (`POST /api/devices`, négociation `7HUGS_SID`, `connect`, `main_page`, `add_choice`, `advanced_add_edit`, `post_advanced_add_edit`, `done`).
 - **Flux d'Options** : Sélection graphique multi-entités (`CONF_ENTITIES`) et demande de re-synchronisation immédiate (`CONF_TRIGGER_RESYNC`).
 
@@ -66,7 +66,7 @@ La validation de la Phase 4 repose sur une stratégie de test boîte-opaque et d
 
 ### Tier 4 : Scénarios Réalistes & Charge Utilisateur (Real-World Workloads)
 - **Scénario Maison Connectée Multi-Appareils** : Configuration conjointe d'éclairages salon, prises cuisine, scène cinéma et lecteur multimédia. Déclenchement séquentiel des boutons, vérification des appels de service correspondants et conservation de l'ordre d'émission sur le bus.
-- **Réveil de veille événementiel (Wake-From-Sleep Workflow)** : Simulation de télécommande endormie (échecs temporaires de polling). Déclenchement d'un webhook bouton entraînant la réinitialisation instantanée du compteur d'erreurs du coordinateur et la mise à jour des capteurs diagnostiques (batterie, RSSI).
+- **Réveil de veille événementiel (Wake-From-Sleep Workflow)** : Simulation de télécommande endormie (échecs temporaires de polling). Déclenchement d'un webhook bouton entraînant la réinitialisation instantanée du compteur d'erreurs du coordinateur et la mise à jour de l'état de connectivité (`connectivity`).
 
 ---
 
@@ -88,10 +88,10 @@ L'environnement de test fonctionne de manière 100 % autonome, sans dépendre d'
 ## 3. Dérivation des Sorties Attendues (Source Faisant Foi)
 
 Chaque assertion des tests E2E s'appuie sur une source de spécification formelle :
-1. **Format Webhook** : Conforme à `PROJECT.md § Interface Contracts` et `custom_components/smart_remote_rebirth/webhook.py` (`smart_remote_{entry_id}`).
+1. **Format Webhook** : Conforme à [`docs/PRD.md § 4`](PRD.md) et `custom_components/smart_remote_rebirth/webhook.py` (`smart_remote_{entry_id}`).
 2. **Schéma Voluptuous** : Clés obligatoires (`domain`, `action` ou `service`), clés optionnelles (`entity_id`, `data`, `params`, `parameters`), codes de retour HTTP 200 / 400.
-3. **Machine à états Lua** : Séquence extraite de la ROM physique (`/rom/webapp/resources/setup.lua`) et documentée dans `docs/PROTOCOL_AND_API.md § 4.2` (`connect` -> `main_page` -> `add_choice` -> `advanced_add_edit` -> `post_advanced_add_edit` -> `done`).
-4. **Bus d'événements HA** : Déclaration formelle `EVENT_SEVENHUGS_BUTTON_PRESSED = "smart_remote_button_pressed"` dans `const.py`.
+3. **Machine à états Lua** : Séquence extraite de la ROM physique (`/rom/webapp/resources/setup.lua`) et documentée dans [`docs/PROTOCOL_AND_API.md § 4.2`](PROTOCOL_AND_API.md) (`connect` -> `main_page` -> `add_choice` -> `advanced_add_edit` -> `post_advanced_add_edit` -> `done`).
+4. **Bus d'événements HA** : Déclaration formelle `EVENT_BUTTON_PRESSED = "smart_remote_button_pressed"` dans `const.py`.
 
 ---
 

@@ -91,7 +91,7 @@ Une fois l'intégration installée et Home Assistant redémarré :
    - Cliquez sur **Suivant**. L'intégration initialise le calcul d'empreinte matérielle SRP-6a (~16 secondes).
    - Un **code PIN à 8 chiffres** (`XXX-XX-XXX`) s'affiche sur l'écran tactile de la Smart Remote.
    - Saisissez ce code dans la fenêtre Home Assistant et validez sans attendre. *(Note : La télécommande affiche le code pendant environ 30 à 45 secondes avant de s'éteindre par sécurité. Si l'écran s'éteint ou si le code est refusé, la télécommande réinitialise la session : fermez la fenêtre de dialogue et relancez l'appairage pour générer un nouveau code).*
-4. **C'est prêt !** Votre télécommande apparaît comme un appareil avec ses entités (niveau de batterie, Wi-Fi, chargeur, et boutons d'action).
+4. **C'est prêt !** Votre télécommande apparaît comme un appareil dans Home Assistant avec son capteur d'état de connectivité (`connectivity`) et ses 3 boutons de diagnostic (`force_sync`, `ping`, `backup_config`).
 
 > [!TIP]
 > Une fois appairée, les clés cryptographiques de session sont conservées de manière sécurisée dans Home Assistant. Vous n'aurez **plus jamais besoin de ressaisir de code PIN**, même après un redémarrage de votre serveur ou de la télécommande.
@@ -104,21 +104,22 @@ Le dépôt inclut un script de démonstration autonome ne nécessitant aucune d�
 ```bash
 python3 tools/poc_quickstart.py
 ```
-Ce script démarre un serveur Sevenhugs virtuel, initialise le composant Home Assistant, lit la télémétrie de batterie et simule un appui tactile avec allumage d'une ampoule HA en moins d'une seconde.
+Ce script démarre un serveur Sevenhugs virtuel, initialise le composant Home Assistant, vérifie la connectivité et les métadonnées matérielles, puis simule un appui tactile avec allumage d'une ampoule HA en moins d'une seconde.
 
 *(Vous pouvez également tester directement avec une télécommande physique connectée : `python3 tools/poc_quickstart.py --ip 192.168.1.XX`).*
 
 ---
 
-## 🛠️ Outils historiques en ligne de commande (CLI & Rétro-ingénierie)
+## 🛠️ Documentation de référence & Outils CLI (`docs/` & `tools/`)
 
-Pour les développeurs et passionnés souhaitant manipuler directement l'API de la télécommande hors Home Assistant, le dépôt conserve les scripts d'exploration d'origine dans le dossier `tools/` :
+Pour les développeurs et passionnés souhaitant comprendre l'architecture ou manipuler directement l'API de la télécommande hors Home Assistant :
 
+- [**`docs/PRD.md`**](docs/PRD.md) : **Product Requirements Document (Source Unique de Vérité)** — vision produit, périmètre, architecture en 4 piliers, contrats d'interfaces (`smart_remote_*`) et feuille de route (v0.5 $\rightarrow$ v1.0).
+- [**`docs/PROTOCOL_AND_API.md`**](docs/PROTOCOL_AND_API.md) : Spécification complète et documentée du protocole (SRP-6a 3072-bit, Ed25519, X25519, ChaCha20-Poly1305, endpoints `/api/*` et assistants Lua `/rom/webapp/resources/setup.lua`).
+- [**`docs/TEST_INFRA.md`**](docs/TEST_INFRA.md) : Architecture et méthodologie du banc d'essais multi-niveaux autonome.
 - [**`tools/pair_and_verify.py`**](tools/pair_and_verify.py) : Script autonome de jumelage initial en ligne de commande.
 - [**`tools/pair_verify.py`**](tools/pair_verify.py) : Test rapide de session chiffrée et extraction des dumps d'état.
 - [**`tools/sevenhugs_bridge.py`**](tools/sevenhugs_bridge.py) : Passerelle et studio Web local de configuration.
-- [**`docs/PROTOCOL_AND_API.md`**](docs/PROTOCOL_AND_API.md) : Spécification complète et documentée du protocole (SRP-6a 3072-bit, Ed25519, X25519, ChaCha20-Poly1305, endpoints `/api/*` et assistants Lua `/rom/webapp/resources/setup.lua`).
-- [**`docs/HOME_ASSISTANT_INTEGRATION_PLAN.md`**](docs/HOME_ASSISTANT_INTEGRATION_PLAN.md) : Plan d'architecture technique et feuille de route détaillée du composant Home Assistant.
 
 ---
 
