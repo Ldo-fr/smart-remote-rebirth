@@ -57,6 +57,7 @@ import aiohttp.web as web
 
 from custom_components.smart_remote_rebirth import SevenhugsData
 from custom_components.smart_remote_rebirth.const import (
+    CONF_ENTITIES,
     CONF_HOST,
     CONF_PORT,
     CONF_REMOTE_ID,
@@ -121,6 +122,7 @@ class TestSevenhugsWebhook(unittest.IsolatedAsyncioTestCase):
             unique_id="a06fe048b48b",
         )
         self.coordinator = MagicMock()
+        self.coordinator.entry = self.entry
         self.coordinator.async_handle_wake_up = AsyncMock()
 
         self.client = MagicMock()
@@ -316,18 +318,18 @@ class TestSevenhugsWebhook(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(call["service_data"]["entity_id"], ["light.spot_1", "light.spot_2", "light.spot_3"])
 
     async def test_dispatch_without_entity_id(self) -> None:
-        """Vérifie qu'une commande sans entity_id (ex. service global) est acceptée."""
+        """Vérifie qu'une commande autorisée sans entity_id (lorsque CONF_ENTITIES n'est pas restreint) est acceptée."""
         payload = {
-            "domain": "homeassistant",
-            "action": "restart",
+            "domain": "light",
+            "action": "turn_off",
         }
         req = MockRequest(json_data=payload)
         resp = await async_handle_webhook(self.hass, self.expected_webhook_id, req)
 
         self.assertEqual(resp.status, 200)
         call = self.hass.services.calls[0]
-        self.assertEqual(call["domain"], "homeassistant")
-        self.assertEqual(call["service"], "restart")
+        self.assertEqual(call["domain"], "light")
+        self.assertEqual(call["service"], "turn_off")
         self.assertEqual(call["service_data"], {})
 
     # =========================================================================
@@ -564,6 +566,104 @@ class TestSevenhugsWebhook(unittest.IsolatedAsyncioTestCase):
         # 4. Requête post-désenregistrement -> 404
         resp_after = await self.hass.webhook.async_handle_webhook(wid, post_req)
         self.assertEqual(resp_after.status, 404)
+
+    # =========================================================================
+    # 8. DURCISSEMENT DE SÉCURITÉ (LISTES BLANCHES DOMAINES/ACTIONS/ENTITÉS)
+    # =========================================================================
+
+    async def test_http_403_on_disallowed_critical_domains(self) -> None:
+        """Vérifie que les domaines critiques (homeassistant, lock, shell_command) sont rejetés avec HTTP 403."""
+        for bad_domain, bad_action in (
+            ("homeassistant", "restart"),
+            ("lock", "unlock"),
+            ("shell_command", "exec_root"),
+            ("hassio", "host_reboot"),
+        ):
+            req = MockRequest(json_data={"domain": bad_domain, "action": bad_action})
+            resp = await async_handle_webhook(self.hass, self.expected_webhook_id, req)
+            self.assertEqual(resp.status, 403)
+        self.assertEqual(len(self.hass.services.calls), 0)
+
+    async def test_http_403_on_disallowed_service_in_allowed_domain(self) -> None:
+        """Vérifie qu'un service non autorisé dans un domaine autorisé retourne HTTP 403."""
+        payload = {
+            "domain": "light",
+            "action": "delete_all_lights",
+            "entity_id": "light.salon",
+        }
+        req = MockRequest(json_data=payload)
+        resp = await async_handle_webhook(self.hass, self.expected_webhook_id, req)
+
+        self.assertEqual(resp.status, 403)
+        self.assertEqual(len(self.hass.services.calls), 0)
+
+    async def test_http_403_on_domain_entity_mismatch(self) -> None:
+        """Vérifie que entity_id doit correspondre au domaine demandé (HTTP 403 sinon)."""
+        payload = {
+            "domain": "light",
+            "action": "turn_on",
+            "entity_id": "switch.prise_salon",
+        }
+        req = MockRequest(json_data=payload)
+        resp = await async_handle_webhook(self.hass, self.expected_webhook_id, req)
+
+        self.assertEqual(resp.status, 403)
+        self.assertEqual(len(self.hass.services.calls), 0)
+
+    async def test_http_403_when_entity_not_in_configured_entities(self) -> None:
+        """Vérifie que seules les entités exposées dans CONF_ENTITIES sont autorisées."""
+        self.entry.options = {CONF_ENTITIES: ["light.autorisee", "switch.autorise"]}
+
+        # 1. Entité autorisée -> HTTP 200
+        ok_req = MockRequest(
+            json_data={"domain": "light", "action": "turn_on", "entity_id": "light.autorisee"}
+        )
+        ok_resp = await async_handle_webhook(self.hass, self.expected_webhook_id, ok_req)
+        self.assertEqual(ok_resp.status, 200)
+        self.assertEqual(len(self.hass.services.calls), 1)
+
+        # 2. Entité non exposée -> HTTP 403
+        forbidden_req = MockRequest(
+            json_data={"domain": "light", "action": "turn_on", "entity_id": "light.interdite"}
+        )
+        forbidden_resp = await async_handle_webhook(
+            self.hass, self.expected_webhook_id, forbidden_req
+        )
+        self.assertEqual(forbidden_resp.status, 403)
+        self.assertEqual(len(self.hass.services.calls), 1)
+
+        # 3. Absence d'entity_id alors que CONF_ENTITIES est configuré -> HTTP 403
+        missing_entity_req = MockRequest(
+            json_data={"domain": "light", "action": "turn_off"}
+        )
+        missing_entity_resp = await async_handle_webhook(
+            self.hass, self.expected_webhook_id, missing_entity_req
+        )
+        self.assertEqual(missing_entity_resp.status, 403)
+
+    async def test_parameter_pollution_cannot_override_entity_id_or_target(self) -> None:
+        """Vérifie qu'un sous-dictionnaire params/data ne peut pas écraser entity_id ou injecter area_id/device_id."""
+        self.entry.options = {CONF_ENTITIES: ["light.autorisee"]}
+        payload = {
+            "domain": "light",
+            "action": "turn_on",
+            "entity_id": "light.autorisee",
+            "params": {
+                "entity_id": "light.interdite",
+                "area_id": "living_room",
+                "device_id": "dev_123",
+                "brightness": 200,
+            },
+        }
+        req = MockRequest(json_data=payload)
+        resp = await async_handle_webhook(self.hass, self.expected_webhook_id, req)
+
+        self.assertEqual(resp.status, 200)
+        call = self.hass.services.calls[0]
+        self.assertEqual(call["service_data"]["entity_id"], "light.autorisee")
+        self.assertNotIn("area_id", call["service_data"])
+        self.assertNotIn("device_id", call["service_data"])
+        self.assertEqual(call["service_data"]["brightness"], 200)
 
 
 if __name__ == "__main__":

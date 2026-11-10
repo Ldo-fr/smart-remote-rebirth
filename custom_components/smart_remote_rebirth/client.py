@@ -83,6 +83,10 @@ class SevenhugsConnectionError(Exception):
 class AsyncSmartRemoteClient:
     """Client HTTP asynchrone Keep-Alive pour Sevenhugs Smart Remote."""
 
+    # Nombre maximal de requêtes par paire de clés de session avant renouvellement
+    # proactif Pair-Verify (atténuation du nonce fixe matériel HuMiThFr du firmware v0.76.4).
+    MAX_REQUESTS_PER_SESSION_KEY: int = 50
+
     def __init__(
         self,
         host: str,
@@ -135,6 +139,7 @@ class AsyncSmartRemoteClient:
         self._verify_lock = asyncio.Lock()
         self._request_lock = asyncio.Lock()
         self._session_generation: int = 0
+        self._requests_since_verify: int = 0
 
     @property
     def session_generation(self) -> int:
@@ -253,6 +258,8 @@ class AsyncSmartRemoteClient:
         sub_m2 = decode_tlv(dec_m2)
         remote_id_bytes = sub_m2.get(0x01, b"")
         remote_sig = sub_m2.get(0x0A, b"")
+        if not remote_sig or len(remote_sig) != 64:
+            raise SevenhugsAuthError("Pair-Verify M2 invalide : signature Ed25519 manquante ou malformée")
 
         # Vérification de la signature Ed25519 de la télécommande si sa clé publique est connue
         if self._remote_pk:
@@ -307,6 +314,7 @@ class AsyncSmartRemoteClient:
         self._keys["session_write_key"] = self._session_write_key.hex()
         self._keys["session_read_key"] = self._session_read_key.hex()
         self._session_generation += 1
+        self._requests_since_verify = 0
         self._is_verified = True
         _LOGGER.debug(
             "Handshake Pair-Verify réussi avec succès pour %s (génération %d)",
@@ -324,6 +332,13 @@ class AsyncSmartRemoteClient:
         """Émet une requête chiffrée avec reconnexion et ré-authentification transparentes."""
         if not self._is_verified:
             await self.async_pair_verify()
+        elif self._requests_since_verify >= self.MAX_REQUESTS_PER_SESSION_KEY:
+            _LOGGER.debug(
+                "Rotation proactive des clés de session Pair-Verify après %d requêtes sur %s",
+                self._requests_since_verify,
+                self.host,
+            )
+            await self.async_pair_verify(force=True)
 
         for attempt in range(2):
             start_gen = self._session_generation
@@ -398,16 +413,9 @@ class AsyncSmartRemoteClient:
 
                 try:
                     decrypted = decrypt_api_payload(self._session_read_key, resp_bytes)
+                    self._requests_since_verify += 1
                     return json.loads(decrypted.decode("utf-8"))
                 except InvalidTag as err:
-                    # Tente de vérifier si la télécommande a renvoyé du JSON clair
-                    try:
-                        raw_text = resp_bytes.decode("utf-8")
-                        unencrypted_json = json.loads(raw_text)
-                        _LOGGER.info("Réponse de %s reçue en clair (non chiffrée): %s", path, unencrypted_json)
-                        return unencrypted_json
-                    except Exception:
-                        pass
                     _LOGGER.warning(
                         "Échec de déchiffrement Poly1305 sur %s (longueur=%d) avec session_read_key: %s",
                         path,
@@ -416,7 +424,7 @@ class AsyncSmartRemoteClient:
                     )
                     self._is_verified = False
                     raise SevenhugsAuthError(
-                        f"Tag Poly1305 invalide lors du déchiffrement de la réponse {path} (session expirée ou désynchronisée)"
+                        f"Tag Poly1305 invalide lors du déchiffrement de la réponse {path} (session expirée ou réponse non authentifiée)"
                     ) from err
                 except (json.JSONDecodeError, UnicodeDecodeError) as err:
                     _LOGGER.warning("Réponse déchiffrée invalide sur %s: %s", path, err)
@@ -642,7 +650,20 @@ class AsyncSmartRemoteClient:
             raise SevenhugsConnectionError(f"Échec de l'initialisation de l'assistant Webhooks: {redirect_resp}")
 
         setup_path = redirect_resp["url"]
-        setup_url = setup_path if setup_path.startswith("http") else f"http://{self.host}{setup_path}"
+        if (
+            not isinstance(setup_path, str)
+            or not setup_path.startswith("/api/devices/")
+            or not setup_path.endswith("/setup")
+            or "://" in setup_path
+            or ".." in setup_path
+            or "\\" in setup_path
+            or "@" in setup_path
+            or any(ch.isspace() for ch in setup_path)
+        ):
+            raise SevenhugsAuthError(
+                f"Chemin d'assistant Lua rejeté pour raison de sécurité: {setup_path!r}"
+            )
+        setup_url = f"http://{self.host}{setup_path}"
 
         # Étape 1 : Récupération du cookie 7HUGS_SID via GET non chiffré
         cookie_sid: str = ""
