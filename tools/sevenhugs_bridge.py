@@ -32,6 +32,7 @@ import http.client
 import http.server
 import json
 import os
+import secrets
 import sys
 import urllib.parse
 
@@ -220,6 +221,8 @@ class SmartRemoteClient:
             resp = self.conn.getresponse()
             raw = resp.read()
 
+        if resp.status == 204 or not raw:
+            return resp.status, {}
         if len(raw) >= 16:
             try:
                 dec = self.read_cipher.decrypt(API_NONCE, raw, None)
@@ -228,8 +231,14 @@ class SmartRemoteClient:
                     return resp.status, json.loads(text)
                 except Exception:
                     return resp.status, text
-            except Exception:
+            except Exception as exc:
+                if resp.status == 200:
+                    raise RuntimeError(
+                        f"Tag Poly1305 invalide lors du déchiffrement de {path}"
+                    ) from exc
                 return resp.status, raw.decode("utf-8", errors="replace")
+        if resp.status == 200:
+            raise RuntimeError(f"Réponse chiffrée tronquée sur {path} ({len(raw)} octets)")
         return resp.status, raw.decode("utf-8", errors="replace")
 
     @staticmethod
@@ -393,6 +402,14 @@ def cmd_webhooks_create(client, triggers_specs):
         raise RuntimeError(f"Échec de l'initialisation Webhooks ({st}): {redirect_resp}")
 
     setup_url = redirect_resp["url"]
+    if (
+        not isinstance(setup_url, str)
+        or not setup_url.startswith("/api/devices/")
+        or not setup_url.endswith("/setup")
+        or "://" in setup_url
+        or ".." in setup_url
+    ):
+        raise RuntimeError(f"URL d'assistant Lua invalide ou non sécurisée: {setup_url!r}")
     c = http.client.HTTPConnection(client.ip, 80, timeout=15)
     c.request("GET", setup_url)
     r = c.getresponse()
@@ -588,17 +605,25 @@ WEB_WIZARD_HTML = """<!DOCTYPE html>
   </div>
 
 <script>
+const STUDIO_TOKEN = "__STUDIO_TOKEN__";
 let currentPkg = null;
 
 async function loadManifests() {
-  const res = await fetch('/local-api/manifests');
+  const res = await fetch('/local-api/manifests', {
+    headers: {'X-Studio-Token': STUDIO_TOKEN}
+  });
   const list = await res.json();
   const container = document.getElementById('manifests-list');
-  container.innerHTML = '';
+  container.textContent = '';
   list.forEach(m => {
     const btn = document.createElement('button');
     btn.className = 'plugin-btn';
-    btn.innerHTML = `<strong>${m.name}</strong><small>${m.id}</small>`;
+    const titleEl = document.createElement('strong');
+    titleEl.textContent = m.name || '';
+    const subEl = document.createElement('small');
+    subEl.textContent = m.id || '';
+    btn.appendChild(titleEl);
+    btn.appendChild(subEl);
     btn.onclick = () => startWizard(m.id);
     container.appendChild(btn);
   });
@@ -608,7 +633,10 @@ async function startWizard(pkgId) {
   currentPkg = pkgId;
   const res = await fetch('/local-api/wizard/start', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Studio-Token': STUDIO_TOKEN
+    },
     body: JSON.stringify({package_id: pkgId})
   });
   const data = await res.json();
@@ -622,7 +650,10 @@ async function sendStep(state, itemId=null, listId=null) {
   });
   const res = await fetch('/local-api/wizard/step', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Studio-Token': STUDIO_TOKEN
+    },
     body: JSON.stringify({state, item_id: itemId, list_id: listId, inputs})
   });
   const data = await res.json();
@@ -635,8 +666,8 @@ function renderWizard(data) {
   const body = document.getElementById('wiz-body');
   const footer = document.getElementById('wiz-footer');
   const topBtn = document.getElementById('top-btn');
-  body.innerHTML = '';
-  footer.innerHTML = '';
+  body.textContent = '';
+  footer.textContent = '';
   topBtn.style.visibility = 'hidden';
 
   (data.components || []).forEach(comp => {
@@ -669,7 +700,21 @@ function renderWizard(data) {
       (comp.items || []).forEach(item => {
         const row = document.createElement('div');
         row.className = 'list-item';
-        row.innerHTML = `<div><strong>${item.main || ''}</strong>${item.detail ? `<br><small style="color:#94a3b8">${item.detail}</small>` : ''}</div><span>&rarr;</span>`;
+        const leftDiv = document.createElement('div');
+        const mainStrong = document.createElement('strong');
+        mainStrong.textContent = item.main || '';
+        leftDiv.appendChild(mainStrong);
+        if (item.detail) {
+          leftDiv.appendChild(document.createElement('br'));
+          const detailSmall = document.createElement('small');
+          detailSmall.style.color = '#94a3b8';
+          detailSmall.textContent = item.detail;
+          leftDiv.appendChild(detailSmall);
+        }
+        const arrowSpan = document.createElement('span');
+        arrowSpan.textContent = '→';
+        row.appendChild(leftDiv);
+        row.appendChild(arrowSpan);
         if (item.onclick) {
           row.onclick = () => sendStep(item.onclick, item.id || null, comp.id || null);
         }
@@ -678,7 +723,14 @@ function renderWizard(data) {
     } else if (comp.type === 'input_text') {
       const grp = document.createElement('div');
       grp.className = 'input-group';
-      grp.innerHTML = `<label>${comp.label || comp.id}</label><input type="text" data-input-id="${comp.id}" value="${comp.value || ''}">`;
+      const lbl = document.createElement('label');
+      lbl.textContent = comp.label || comp.id || '';
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.setAttribute('data-input-id', comp.id || '');
+      inp.value = comp.value || '';
+      grp.appendChild(lbl);
+      grp.appendChild(inp);
       body.appendChild(grp);
     } else if (comp.type === 'navigation') {
       if (comp.top_button && comp.top_button.onclick) {
@@ -705,46 +757,88 @@ loadManifests();
 """
 
 
-def cmd_web_wizard(client, port):
+def cmd_web_wizard(client, port, bind_address="127.0.0.1"):
     client.pair_verify()
     _, manifests = client.api_request("GET", "/api/manifests")
     session_state = {"setup_url": None, "cookie": None}
+    studio_token = secrets.token_urlsafe(24)
+    allowed_hosts = {f"localhost:{port}", f"127.0.0.1:{port}", f"{bind_address}:{port}"}
 
     class WizardHandler(http.server.BaseHTTPRequestHandler):
+        def _check_request_security(self, require_token=True):
+            host_hdr = self.headers.get("Host", "")
+            if host_hdr and host_hdr not in allowed_hosts:
+                self.send_error(403, "Forbidden Host header")
+                return False
+            origin_hdr = self.headers.get("Origin", "")
+            if origin_hdr:
+                parsed_origin = urllib.parse.urlparse(origin_hdr)
+                if parsed_origin.netloc not in allowed_hosts:
+                    self.send_error(403, "Forbidden Origin header")
+                    return False
+            if require_token:
+                req_token = self.headers.get("X-Studio-Token", "")
+                if not secrets.compare_digest(req_token, studio_token):
+                    self.send_error(403, "Invalid or missing X-Studio-Token")
+                    return False
+            return True
+
         def _send_json(self, code, obj):
             raw = json.dumps(obj, ensure_ascii=False).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Length", str(len(raw)))
             self.end_headers()
             self.wfile.write(raw)
 
         def do_GET(self):
             if self.path == "/" or self.path == "/index.html":
-                raw = WEB_WIZARD_HTML.encode("utf-8")
+                if not self._check_request_security(require_token=False):
+                    return
+                html_page = WEB_WIZARD_HTML.replace("__STUDIO_TOKEN__", studio_token)
+                raw = html_page.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("X-Frame-Options", "DENY")
+                self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("Content-Length", str(len(raw)))
                 self.end_headers()
                 self.wfile.write(raw)
             elif self.path == "/local-api/manifests":
+                if not self._check_request_security(require_token=True):
+                    return
                 self._send_json(200, manifests)
             else:
                 self.send_error(404)
 
         def do_POST(self):
+            if not self._check_request_security(require_token=True):
+                return
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
 
             if self.path == "/local-api/wizard/start":
                 pkg_id = body.get("package_id")
-                manifest = next(m for m in manifests if m.get("id") == pkg_id)
+                manifest = next((m for m in manifests if m.get("id") == pkg_id), None)
+                if not manifest:
+                    self._send_json(400, {"error": f"Unknown package_id: {pkg_id!r}"})
+                    return
                 body_to_send = {k: v for k, v in manifest.items() if k != "discover"}
                 st, redir = client.api_request("POST", "/api/devices", body_to_send)
                 if st != 200 or not isinstance(redir, dict) or "url" not in redir:
                     self._send_json(400, {"error": redir})
                     return
                 setup_url = redir["url"]
+                if (
+                    not isinstance(setup_url, str)
+                    or not setup_url.startswith("/api/devices/")
+                    or not setup_url.endswith("/setup")
+                    or "://" in setup_url
+                    or ".." in setup_url
+                ):
+                    self._send_json(400, {"error": f"Invalid setup_url: {setup_url!r}"})
+                    return
                 c = http.client.HTTPConnection(client.ip, 80, timeout=15)
                 c.request("GET", setup_url)
                 r = c.getresponse()
@@ -769,6 +863,9 @@ def cmd_web_wizard(client, port):
             elif self.path == "/local-api/wizard/step":
                 setup_url = session_state["setup_url"]
                 cookie = session_state["cookie"]
+                if not setup_url:
+                    self._send_json(400, {"error": "No active wizard session"})
+                    return
                 payload = client.build_lua_payload(
                     body.get("state"),
                     item_id=body.get("item_id"),
@@ -792,8 +889,8 @@ def cmd_web_wizard(client, port):
             else:
                 self.send_error(404)
 
-    server = http.server.HTTPServer(("0.0.0.0", port), WizardHandler)
-    print(f"[✓] Studio Web Sevenhugs démarré sur http://localhost:{port}")
+    server = http.server.HTTPServer((bind_address, port), WizardHandler)
+    print(f"[✓] Studio Web Sevenhugs démarré sur http://{bind_address}:{port}")
     print("    Ouvrez cette adresse dans votre navigateur pour utiliser les assistants Lua de la télécommande.")
     server.serve_forever()
 
@@ -859,6 +956,11 @@ def main():
         help="Lance le serveur Web local remplaçant cdn.prod.cobra.sevenhugs.com",
     )
     p_web.add_argument("--port", type=int, default=8080, help="Port HTTP local (défaut: 8080)")
+    p_web.add_argument(
+        "--bind",
+        default="127.0.0.1",
+        help="Adresse IP d'écoute (défaut sécurisé: 127.0.0.1)",
+    )
 
     args = parser.parse_args()
 
@@ -883,7 +985,7 @@ def main():
     elif args.command == "webhooks-create":
         cmd_webhooks_create(client, args.trigger)
     elif args.command == "web-wizard":
-        cmd_web_wizard(client, args.port)
+        cmd_web_wizard(client, args.port, bind_address=args.bind)
 
 
 if __name__ == "__main__":

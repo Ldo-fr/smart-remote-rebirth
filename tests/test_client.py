@@ -494,6 +494,138 @@ async def test_async_request_invalid_tag_triggers_auto_reconnect(test_keys: dict
         await server.stop()
 
 
+@pytest.mark.asyncio
+async def test_cleartext_json_fallback_is_strictly_rejected() -> None:
+    """Vérifie qu'une réponse JSON en clair non chiffrée est rejetée avec SevenhugsAuthError (P1-3)."""
+    server = MockSmartRemoteServer()
+    await server.start()
+
+    client_sk = ed25519.Ed25519PrivateKey.generate()
+    keys = {
+        "controller_id": "ctrl-cleartext-reject",
+        "client_private_key": client_sk.private_bytes_raw().hex(),
+        "remote_public_key": server.remote_pk.hex(),
+    }
+
+    connector = aiohttp.TCPConnector(force_close=False, limit=1)
+    session = aiohttp.ClientSession(connector=connector)
+    client = AsyncSmartRemoteClient(
+        host=f"{server.host}:{server.port}",
+        session=session,
+        keys=keys,
+    )
+
+    try:
+        await client.async_pair_verify()
+        assert client.is_verified is True
+
+        # Simuler une réponse HTTP 200 contenant un JSON en clair non chiffré (tentative de downgrade MITM)
+        class FakeCleartextResponse:
+            status = 200
+            headers = {}
+
+            async def read(self) -> bytes:
+                return b'{"battery": 1, "charging": true, "spoofed": true}'
+
+            async def __aenter__(self) -> "FakeCleartextResponse":
+                return self
+
+            async def __aexit__(self, *args: Any) -> None:
+                pass
+
+        orig_request = session.request
+        session.request = lambda method, url, **kwargs: FakeCleartextResponse()  # type: ignore[assignment]
+
+        with pytest.raises(SevenhugsAuthError):
+            await client._raw_encrypted_request("GET", "/api/settings")
+        assert client.is_verified is False
+        session.request = orig_request  # type: ignore[assignment]
+    finally:
+        await client.close()
+        await session.close()
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_async_push_webhooks_rejects_malicious_setup_url() -> None:
+    """Vérifie que async_push_webhooks rejette une URL de redirection SSRF ou hors /api/devices/*/setup (P2-1)."""
+    server = MockSmartRemoteServer()
+    await server.start()
+
+    client_sk = ed25519.Ed25519PrivateKey.generate()
+    keys = {
+        "controller_id": "ctrl-ssrf-check",
+        "client_private_key": client_sk.private_bytes_raw().hex(),
+        "remote_public_key": server.remote_pk.hex(),
+    }
+
+    connector = aiohttp.TCPConnector(force_close=False, limit=1)
+    session = aiohttp.ClientSession(connector=connector)
+    client = AsyncSmartRemoteClient(
+        host=f"{server.host}:{server.port}",
+        session=session,
+        keys=keys,
+    )
+
+    try:
+        for malicious_url in (
+            "http://169.254.169.254/latest/meta-data/",
+            "/api/devices/../../evil/setup",
+            "/api/settings",
+        ):
+            async def fake_request(method: str, path: str, payload: Any = None, extra_headers: Any = None) -> Any:
+                if path == "/api/manifests":
+                    return [{"id": "sevenhugs.control.webhooks", "version": "1.0"}]
+                return {"url": malicious_url}
+
+            client.async_request = fake_request  # type: ignore[assignment]
+            with pytest.raises(SevenhugsAuthError):
+                await client.async_push_webhooks(["Salon|POST|http://192.168.1.50:8123/api/webhook/test"])
+    finally:
+        await client.close()
+        await session.close()
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_proactive_session_key_rotation() -> None:
+    """Vérifie la rotation proactive des clés de session au-delà de MAX_REQUESTS_PER_SESSION_KEY (P1-2)."""
+    server = MockSmartRemoteServer()
+    await server.start()
+
+    client_sk = ed25519.Ed25519PrivateKey.generate()
+    keys = {
+        "controller_id": "ctrl-key-rotation",
+        "client_private_key": client_sk.private_bytes_raw().hex(),
+        "remote_public_key": server.remote_pk.hex(),
+    }
+
+    connector = aiohttp.TCPConnector(force_close=False, limit=1)
+    session = aiohttp.ClientSession(connector=connector)
+    client = AsyncSmartRemoteClient(
+        host=f"{server.host}:{server.port}",
+        session=session,
+        keys=keys,
+    )
+
+    try:
+        await client.async_pair_verify()
+        assert server.m1_verify_count == 1
+        gen_before = client.session_generation
+
+        # Simuler l'atteinte du seuil de requêtes par clé de session
+        client._requests_since_verify = client.MAX_REQUESTS_PER_SESSION_KEY
+        resp = await client.async_request("GET", "/api/settings")
+        assert resp.get("battery") == 95
+        assert server.m1_verify_count == 2
+        assert client.session_generation > gen_before
+        assert client._requests_since_verify == 1
+    finally:
+        await client.close()
+        await session.close()
+        await server.stop()
+
+
 def run_all_async_tests() -> int:
     """Exécute l'ensemble des tests asynchrones de test_client.py et rapporte le bilan."""
     tests = [
@@ -507,6 +639,9 @@ def run_all_async_tests() -> int:
         test_async_request_timeout_recovery,
         test_async_request_invalid_tag_triggers_auto_reconnect,
         test_async_push_webhooks_flow,
+        test_cleartext_json_fallback_is_strictly_rejected,
+        test_async_push_webhooks_rejects_malicious_setup_url,
+        test_proactive_session_key_rotation,
     ]
     passed = 0
     failed = 0
@@ -541,6 +676,9 @@ def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
         test_async_request_timeout_recovery,
         test_async_request_invalid_tag_triggers_auto_reconnect,
         test_async_push_webhooks_flow,
+        test_cleartext_json_fallback_is_strictly_rejected,
+        test_async_push_webhooks_rejects_malicious_setup_url,
+        test_proactive_session_key_rotation,
     ]
     for fn in tests:
         tc = unittest.FunctionTestCase(lambda f=fn: asyncio.run(f()), description=fn.__name__)

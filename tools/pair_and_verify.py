@@ -119,6 +119,17 @@ def post_tlv(url: str, tlv_bytes: bytes, timeout: float = 60.0) -> bytes:
         return resp.read()
 
 
+def _save_keys_securely(keys_file: str, data: dict) -> None:
+    """Écrit le fichier de clés JSON avec des permissions restreintes (0600)."""
+    fd = os.open(keys_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    try:
+        os.chmod(keys_file, 0o600)
+    except OSError:
+        pass
+
+
 def run_pair_and_verify(target_ip: str, keys_file: str = DEFAULT_KEYS_FILE):
     print("=" * 65)
     print("   SEVENHUGS SMART REMOTE - PAIR-SETUP & PAIR-VERIFY")
@@ -135,8 +146,7 @@ def run_pair_and_verify(target_ip: str, keys_file: str = DEFAULT_KEYS_FILE):
         "client_public_key": client_pk.hex(),
         "ip": target_ip,
     }
-    with open(keys_file, "w", encoding="utf-8") as f:
-        json.dump(init_keys, f, indent=2)
+    _save_keys_securely(keys_file, init_keys)
 
     print(f"\n[*] Identité du contrôleur générée :")
     print(f"    - Controller UUID : {controller_id}")
@@ -276,6 +286,7 @@ def run_pair_and_verify(target_ip: str, keys_file: str = DEFAULT_KEYS_FILE):
     m2_raw = resp.read()
     m2 = decode_tlv(m2_raw)
     remote_eph_pk = m2[0x03]
+    enc_m2 = m2[0x05]
     shared_secret = client_eph_sk.exchange(
         x25519.X25519PublicKey.from_public_bytes(remote_eph_pk)
     )
@@ -287,11 +298,18 @@ def run_pair_and_verify(target_ip: str, keys_file: str = DEFAULT_KEYS_FILE):
         info=b"Pair-Verify-Encrypt-Info",
     ).derive(shared_secret)
 
+    cipher = ChaCha20Poly1305(verify_key)
+    dec_m2 = decode_tlv(cipher.decrypt(b"\x00\x00\x00\x00PV-Msg02", enc_m2, None))
+    remote_id_m2 = dec_m2[0x01]
+    remote_sig = dec_m2[0x0A]
+    ed25519.Ed25519PublicKey.from_public_bytes(remote_pk).verify(
+        remote_sig, remote_eph_pk + remote_id_m2 + client_eph_pk
+    )
+
     to_sign = client_eph_pk + cid_bytes + remote_eph_pk
     client_sig = client_sk.sign(to_sign)
     sub_m3 = encode_tlv([(0x0A, client_sig), (0x01, cid_bytes)])
 
-    cipher = ChaCha20Poly1305(verify_key)
     enc_m3 = cipher.encrypt(b"\x00\x00\x00\x00PV-Msg03", sub_m3, None)
     m3_data = encode_tlv([(0x05, enc_m3), (0x06, b"\x03")])
 
@@ -330,9 +348,8 @@ def run_pair_and_verify(target_ip: str, keys_file: str = DEFAULT_KEYS_FILE):
         "ip": target_ip,
     }
 
-    with open(keys_file, "w", encoding="utf-8") as f:
-        json.dump(solved_keys, f, indent=2)
-    print(f"[+] Clés enregistrées dans : {keys_file}")
+    _save_keys_securely(keys_file, solved_keys)
+    print(f"[+] Clés enregistrées (permissions 0600) dans : {keys_file}")
     return solved_keys
 
 

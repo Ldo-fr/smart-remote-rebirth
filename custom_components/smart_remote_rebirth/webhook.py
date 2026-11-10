@@ -1,8 +1,8 @@
 """Module de gestion des webhooks locaux pour Sevenhugs Smart Remote.
 
-Fournit l'enregistrement du webhook local sécurisé, la validation du payload
-entrant, l'exécution directe des services Home Assistant, l'émission d'événements
-sur le bus système et le réveil optimiste du coordinateur de données.
+Fournit l'enregistrement du webhook local sécurisé, la validation stricte du payload
+entrant (domaines, actions et entités autorisés), l'exécution des services Home Assistant,
+l'émission d'événements sur le bus système et le réveil optimiste du coordinateur.
 """
 
 from __future__ import annotations
@@ -13,8 +13,8 @@ import inspect
 import logging
 from typing import Any
 
-import voluptuous as vol
 from aiohttp import web
+import voluptuous as vol
 
 try:
     from homeassistant.components import webhook
@@ -26,8 +26,10 @@ except ImportError:
     HomeAssistant = Any  # type: ignore[misc,assignment]
 
 from .const import (
+    CONF_ENTITIES,
     CONF_REMOTE_ID,
     CONF_SERIAL_NUMBER,
+    DEFAULT_EXPOSED_DOMAINS,
     DOMAIN,
     EVENT_BUTTON_PRESSED,
     EVENT_SEVENHUGS_BUTTON_PRESSED,
@@ -36,7 +38,73 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Liste blanche stricte des domaines et services autorisés via le webhook
+ALLOWED_DOMAIN_ACTIONS: dict[str, set[str]] = {
+    "light": {"toggle", "turn_on", "turn_off"},
+    "switch": {"toggle", "turn_on", "turn_off"},
+    "scene": {"turn_on", "apply"},
+    "script": {"turn_on", "turn_off", "toggle"},
+    "button": {"press"},
+    "cover": {
+        "toggle",
+        "open_cover",
+        "close_cover",
+        "stop_cover",
+        "set_cover_position",
+        "set_cover_tilt_position",
+        "open_cover_tilt",
+        "close_cover_tilt",
+        "stop_cover_tilt",
+        "toggle_cover_tilt",
+    },
+    "fan": {
+        "toggle",
+        "turn_on",
+        "turn_off",
+        "set_percentage",
+        "set_preset_mode",
+        "oscillate",
+        "increase_speed",
+        "decrease_speed",
+        "set_direction",
+    },
+    "media_player": {
+        "toggle",
+        "turn_on",
+        "turn_off",
+        "media_play_pause",
+        "media_play",
+        "media_pause",
+        "media_stop",
+        "media_next_track",
+        "media_previous_track",
+        "volume_up",
+        "volume_down",
+        "volume_set",
+        "volume_mute",
+        "select_source",
+        "select_sound_mode",
+        "play_media",
+    },
+    "input_boolean": {"toggle", "turn_on", "turn_off"},
+    "automation": {"trigger", "toggle", "turn_on", "turn_off"},
+}
+
+ALLOWED_WEBHOOK_DOMAINS: set[str] = set(DEFAULT_EXPOSED_DOMAINS) & set(ALLOWED_DOMAIN_ACTIONS.keys())
+
+# Clés de ciblage interdites dans les sous-dictionnaires de paramètres (anti-parameter pollution)
+FORBIDDEN_TARGET_OVERRIDE_KEYS: set[str] = {
+    "entity_id",
+    "device_id",
+    "area_id",
+    "floor_id",
+    "label_id",
+    "target",
+}
+
 __all__ = [
+    "ALLOWED_DOMAIN_ACTIONS",
+    "ALLOWED_WEBHOOK_DOMAINS",
     "async_generate_webhook_url",
     "async_get_webhook_id",
     "async_handle_webhook",
@@ -206,6 +274,30 @@ def async_unregister_webhook(hass: HomeAssistant, entry_or_id: ConfigEntry | str
         )
 
 
+def _extract_configured_entities(entry: Any) -> set[str] | None:
+    """Extrait l'ensemble normalisé des entity_id autorisés pour cette ConfigEntry.
+
+    Retourne un set non-vide si des entités ont été explicitement configurées par
+    l'utilisateur, ou None si aucune restriction d'entités n'est encore enregistrée.
+    """
+    if entry is None:
+        return None
+
+    for source_attr in ("options", "data"):
+        source = getattr(entry, source_attr, None)
+        if isinstance(source, Mapping) and CONF_ENTITIES in source:
+            raw_list = source.get(CONF_ENTITIES)
+            if isinstance(raw_list, (list, tuple, set)):
+                normalized = {
+                    str(item).strip().lower()
+                    for item in raw_list
+                    if isinstance(item, str) and item.strip() and not item.strip().startswith("sevenhugs.")
+                }
+                if normalized:
+                    return normalized
+    return None
+
+
 # ============================================================================
 # 4. TRAITEMENT DE LA REQUÊTE HTTP ENTRANTE (HANDLER)
 # ============================================================================
@@ -220,8 +312,9 @@ async def async_handle_webhook(
     Étapes :
     1. Décodage du corps JSON (HTTP 400 si JSON invalide).
     2. Validation du schéma avec Voluptuous (HTTP 400 si validation échouée).
-    3. Résolution des métadonnées d'entrée et du coordinateur.
-    4. Émission de l'événement système 'sevenhugs_button_pressed' sur hass.bus.
+    3. Vérification de sécurité : domaine autorisé, service autorisé, cohérence domaine/entité
+       et appartenance à la liste d'entités exposées par la ConfigEntry (HTTP 403 si refusé).
+    4. Émission de l'événement système 'smart_remote_button_pressed' sur hass.bus.
     5. Réveil optimiste immédiat du coordinateur en tâche de fond.
     6. Appel du service Home Assistant correspondant (hass.services.async_call).
     7. Retour HTTP 200 OK.
@@ -258,25 +351,129 @@ async def async_handle_webhook(
             content_type="text/plain",
         )
 
-    domain = payload["domain"]
-    raw_action = payload.get("action") or payload.get("service")
+    domain = payload["domain"].lower()
+    raw_action = (payload.get("action") or payload.get("service") or "").strip().lower()
     action = raw_action
     if action.startswith(f"{domain}."):
         action = action[len(domain) + 1 :]
 
+    # 3. Contrôles de sécurité (Allowlist Domaine, Service & Entités)
+    if domain not in ALLOWED_WEBHOOK_DOMAINS:
+        _LOGGER.warning(
+            "Rejet de sécurité sur le webhook %s : domaine '%s' non autorisé",
+            webhook_id,
+            domain,
+        )
+        return web.Response(
+            status=403,
+            text=f"Forbidden domain: '{domain}' is not allowed",
+            content_type="text/plain",
+        )
+
+    allowed_actions = ALLOWED_DOMAIN_ACTIONS.get(domain, set())
+    if action not in allowed_actions:
+        _LOGGER.warning(
+            "Rejet de sécurité sur le webhook %s : action '%s.%s' non autorisée",
+            webhook_id,
+            domain,
+            action,
+        )
+        return web.Response(
+            status=403,
+            text=f"Forbidden service: '{domain}.{action}' is not allowed",
+            content_type="text/plain",
+        )
+
     entity_id = payload.get("entity_id")
 
-    # 3. Assemblage des paramètres de service
-    service_data: dict[str, Any] = {}
-    if entity_id is not None:
-        service_data["entity_id"] = entity_id
+    # 4. Résolution de l'entry_id, de la ConfigEntry et du coordinateur
+    entry_id = webhook_id.removeprefix(WEBHOOK_ID_PREFIX)
 
+    remote_id = ""
+    serial_number = ""
+    coordinator = None
+    entry = None
+
+    runtime_data = hass.data.get(DOMAIN, {}).get(entry_id)
+    if runtime_data is not None:
+        coordinator = getattr(runtime_data, "coordinator", None) or (
+            runtime_data.get("coordinator") if isinstance(runtime_data, dict) else None
+        )
+        if coordinator is not None:
+            for attr_name in ("entry", "config_entry"):
+                cand = getattr(coordinator, attr_name, None)
+                if cand is not None and (
+                    isinstance(getattr(cand, "options", None), Mapping)
+                    or isinstance(getattr(cand, "data", None), Mapping)
+                ):
+                    entry = cand
+                    break
+        client = getattr(runtime_data, "client", None) or (
+            runtime_data.get("client") if isinstance(runtime_data, dict) else None
+        )
+        if client and hasattr(client, "keys") and isinstance(client.keys, dict):
+            remote_id = client.keys.get(CONF_REMOTE_ID, "")
+            serial_number = client.keys.get(CONF_SERIAL_NUMBER, "")
+
+    if hasattr(hass, "config_entries") and hasattr(hass.config_entries, "async_get_entry"):
+        resolved_entry = hass.config_entries.async_get_entry(entry_id)
+        if resolved_entry is not None:
+            entry = resolved_entry
+            if hasattr(entry, "data") and isinstance(entry.data, Mapping):
+                remote_id = remote_id or entry.data.get(CONF_REMOTE_ID, "")
+                serial_number = serial_number or entry.data.get(CONF_SERIAL_NUMBER, "")
+
+    # Validation de cohérence domaine/entity_id et contrôle de la liste d'entités configurées
+    configured_entities = _extract_configured_entities(entry)
+    if entity_id is not None:
+        target_list = [entity_id] if isinstance(entity_id, str) else list(entity_id)
+        for target_ent in target_list:
+            norm_ent = target_ent.strip().lower()
+            if not norm_ent.startswith(f"{domain}."):
+                _LOGGER.warning(
+                    "Rejet de sécurité sur le webhook %s : l'entité '%s' ne correspond pas au domaine '%s'",
+                    webhook_id,
+                    target_ent,
+                    domain,
+                )
+                return web.Response(
+                    status=403,
+                    text=f"Entity '{target_ent}' does not match domain '{domain}'",
+                    content_type="text/plain",
+                )
+            if configured_entities is not None and norm_ent not in configured_entities:
+                _LOGGER.warning(
+                    "Rejet de sécurité sur le webhook %s : l'entité '%s' ne fait pas partie des entités exposées",
+                    webhook_id,
+                    target_ent,
+                )
+                return web.Response(
+                    status=403,
+                    text=f"Forbidden entity: '{target_ent}' is not exposed for this remote",
+                    content_type="text/plain",
+                )
+    elif configured_entities is not None:
+        # Si l'utilisateur a restreint la télécommande à une liste d'entités, un appel sans entity_id est refusé
+        _LOGGER.warning(
+            "Rejet de sécurité sur le webhook %s : entity_id manquant alors qu'une liste d'entités est configurée",
+            webhook_id,
+        )
+        return web.Response(
+            status=403,
+            text="Forbidden: 'entity_id' is required when exposed entities are configured",
+            content_type="text/plain",
+        )
+
+    # 5. Assemblage sécurisé des paramètres de service (sans écrasement de cible)
+    service_data: dict[str, Any] = {}
     for param_key in ("params", "parameters", "service_data", "data"):
         param_val = payload.get(param_key)
         if isinstance(param_val, dict):
-            service_data.update(param_val)
+            for k, v in param_val.items():
+                if k not in FORBIDDEN_TARGET_OVERRIDE_KEYS:
+                    service_data[k] = v
 
-    # Extraction des clés supplémentaires de premier niveau (non réservées)
+    # Extraction des clés supplémentaires de premier niveau (non réservées et non interdites)
     reserved_keys = {
         "domain",
         "action",
@@ -288,39 +485,15 @@ async def async_handle_webhook(
         "parameters",
         "service_data",
         "data",
-    }
+    } | FORBIDDEN_TARGET_OVERRIDE_KEYS
     for k, v in raw_payload.items():
         if k not in reserved_keys and k not in service_data:
             service_data[k] = v
 
-    # 4. Résolution de l'entry_id, du remote_id et du coordinateur
-    entry_id = (
-        webhook_id.removeprefix(WEBHOOK_ID_PREFIX)
-    )
+    if entity_id is not None:
+        service_data["entity_id"] = entity_id
 
-    remote_id = ""
-    serial_number = ""
-    coordinator = None
-
-    runtime_data = hass.data.get(DOMAIN, {}).get(entry_id)
-    if runtime_data is not None:
-        coordinator = getattr(runtime_data, "coordinator", None) or (
-            runtime_data.get("coordinator") if isinstance(runtime_data, dict) else None
-        )
-        client = getattr(runtime_data, "client", None) or (
-            runtime_data.get("client") if isinstance(runtime_data, dict) else None
-        )
-        if client and hasattr(client, "keys") and isinstance(client.keys, dict):
-            remote_id = client.keys.get(CONF_REMOTE_ID, "")
-            serial_number = client.keys.get(CONF_SERIAL_NUMBER, "")
-
-    if hasattr(hass, "config_entries") and hasattr(hass.config_entries, "async_get_entry"):
-        entry = hass.config_entries.async_get_entry(entry_id)
-        if entry and hasattr(entry, "data") and isinstance(entry.data, Mapping):
-            remote_id = remote_id or entry.data.get(CONF_REMOTE_ID, "")
-            serial_number = serial_number or entry.data.get(CONF_SERIAL_NUMBER, "")
-
-    # 5. Émission d'événement sur le bus Home Assistant (déclencheur universel)
+    # 6. Émission d'événement sur le bus Home Assistant (déclencheur universel)
     event_data = dict(raw_payload)
     event_data.setdefault("entry_id", entry_id)
     if remote_id:
@@ -334,10 +507,10 @@ async def async_handle_webhook(
         event_data.setdefault("serial_number", "")
 
     event_data.setdefault("webhook_id", webhook_id)
-    event_data.setdefault("domain", domain)
-    event_data.setdefault("action", action)
+    event_data["domain"] = domain
+    event_data["action"] = action
     if entity_id is not None:
-        event_data.setdefault("entity_id", entity_id)
+        event_data["entity_id"] = entity_id
     event_data.setdefault("payload", dict(raw_payload))
 
     if hasattr(hass, "bus") and hasattr(hass.bus, "async_fire"):
@@ -352,7 +525,7 @@ async def async_handle_webhook(
         except Exception as err:
             _LOGGER.warning("Échec de l'émission d'événement sur le bus: %s", err)
 
-    # 6. Réveil optimiste du coordinateur de données (sans bloquer la réponse HTTP)
+    # 7. Réveil optimiste du coordinateur de données (sans bloquer la réponse HTTP)
     if coordinator is not None and hasattr(coordinator, "async_handle_wake_up"):
         try:
             wake_coro = coordinator.async_handle_wake_up("webhook")
@@ -363,7 +536,7 @@ async def async_handle_webhook(
         except Exception as err:
             _LOGGER.debug("Notification de réveil au coordinateur ignorée: %s", err)
 
-    # 7. Exécution asynchrone du service ciblé
+    # 8. Exécution asynchrone du service ciblé
     if hasattr(hass, "services") and hasattr(hass.services, "async_call"):
         try:
             await hass.services.async_call(
