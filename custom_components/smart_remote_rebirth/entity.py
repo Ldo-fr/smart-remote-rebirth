@@ -30,17 +30,17 @@ from .const import (
     MANUFACTURER,
     MODEL_SR1A,
 )
-from .coordinator import SevenhugsDataUpdateCoordinator
+from .coordinator import SmartRemoteDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class SevenhugsBaseEntity(CoordinatorEntity[SevenhugsDataUpdateCoordinator]):
-    """Classe de base pour toutes les entités Sevenhugs Smart Remote.
+class SmartRemoteBaseEntity(CoordinatorEntity[SmartRemoteDataUpdateCoordinator]):
+    """Classe de base pour toutes les entités Smart Remote Rebirth.
 
     Hérite de CoordinatorEntity pour synchroniser automatiquement les entités
     avec les cycles de rafraîchissement et la résilience de veille de
-    SevenhugsDataUpdateCoordinator.
+    SmartRemoteDataUpdateCoordinator.
     """
 
     _attr_has_entity_name: bool = True
@@ -48,17 +48,17 @@ class SevenhugsBaseEntity(CoordinatorEntity[SevenhugsDataUpdateCoordinator]):
 
     def __init__(
         self,
-        coordinator: SevenhugsDataUpdateCoordinator,
+        coordinator: SmartRemoteDataUpdateCoordinator,
         entry: ConfigEntry,
         entity_key: str,
         description: Any = None,
     ) -> None:
-        """Initialise l'entité de base Sevenhugs.
+        """Initialise l'entité de base Smart Remote.
 
         Args:
-            coordinator: Coordinateur de données SevenhugsDataUpdateCoordinator.
+            coordinator: Coordinateur de données SmartRemoteDataUpdateCoordinator.
             entry: ConfigEntry associée à cette instance de télécommande.
-            entity_key: Clé distinctive de l'entité (ex: 'battery', 'charging').
+            entity_key: Clé distinctive de l'entité (ex: 'connectivity', 'ping').
             description: Description typée optionnelle (EntityDescription).
         """
         super().__init__(coordinator)
@@ -126,3 +126,7 @@ class SevenhugsBaseEntity(CoordinatorEntity[SevenhugsDataUpdateCoordinator]):
     def telemetry_data(self) -> dict[str, Any]:
         """Renvoie les données de télémétrie actuelles en cache ou un dictionnaire vide."""
         return self.coordinator.data or {}
+
+
+# Alias rétro-compatible
+SevenhugsBaseEntity = SmartRemoteBaseEntity

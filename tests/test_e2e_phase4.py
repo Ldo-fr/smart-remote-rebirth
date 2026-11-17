@@ -673,7 +673,7 @@ class TestPhase4Tier3CrossFeatureInteractions(unittest.IsolatedAsyncioTestCase):
         coordinator: SevenhugsDataUpdateCoordinator = runtime_data.coordinator
         self.assertEqual(coordinator._consecutive_failures, 0)
         self.assertTrue(coordinator.last_update_success)
-        self.assertEqual(coordinator.battery, 95)
+        self.assertTrue(coordinator.is_connected)
 
         await async_unload_entry(self.hass, entry)
 
@@ -903,7 +903,6 @@ class TestPhase4Tier4RealWorldWorkloads(unittest.IsolatedAsyncioTestCase):
 
         # Vérification 3 : Données rafraîchies et disponibles
         self.assertTrue(coordinator.last_update_success)
-        self.assertEqual(coordinator.battery, 95)
         self.assertTrue(coordinator.is_connected)
 
         await async_unload_entry(self.hass, entry)

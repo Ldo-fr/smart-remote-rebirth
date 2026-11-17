@@ -79,13 +79,15 @@ from custom_components.smart_remote_rebirth import (
     AsyncSmartRemoteClient,
     SevenhugsData,
     SevenhugsDataUpdateCoordinator,
+    SmartRemoteData,
+    SmartRemoteDataUpdateCoordinator,
     async_setup_entry,
     async_unload_entry,
 )
 from custom_components.smart_remote_rebirth.binary_sensor import (
     PARALLEL_UPDATES as BINARY_SENSOR_PARALLEL_UPDATES,
-    SevenhugsChargingBinarySensor,
     SevenhugsConnectivityBinarySensor,
+    SmartRemoteConnectivityBinarySensor,
     async_setup_entry as binary_sensor_setup_entry,
 )
 from custom_components.smart_remote_rebirth.button import (
@@ -93,11 +95,16 @@ from custom_components.smart_remote_rebirth.button import (
     SevenhugsBackupConfigButton,
     SevenhugsForceSyncButton,
     SevenhugsPingButton,
+    SmartRemoteBackupConfigButton,
+    SmartRemoteForceSyncButton,
+    SmartRemotePingButton,
     async_setup_entry as button_setup_entry,
 )
 from custom_components.smart_remote_rebirth.client import (
     SevenhugsAuthError,
     SevenhugsConnectionError,
+    SmartRemoteAuthError,
+    SmartRemoteConnectionError,
 )
 from custom_components.smart_remote_rebirth.const import (
     CONF_HOST,
@@ -109,13 +116,9 @@ from custom_components.smart_remote_rebirth.const import (
     MANUFACTURER,
     MODEL_SR1A,
 )
-from custom_components.smart_remote_rebirth.entity import SevenhugsBaseEntity
-from custom_components.smart_remote_rebirth.sensor import (
-    PARALLEL_UPDATES as SENSOR_PARALLEL_UPDATES,
-    SevenhugsActiveScreenSensor,
-    SevenhugsBatterySensor,
-    SevenhugsWifiSignalSensor,
-    async_setup_entry as sensor_setup_entry,
+from custom_components.smart_remote_rebirth.entity import (
+    SevenhugsBaseEntity,
+    SmartRemoteBaseEntity,
 )
 
 
@@ -204,7 +207,7 @@ class TestSevenhugsBaseEntity(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(entity.unique_id, "SR1A_ENTITIES_999_test_feature")
         self.assertEqual(entity.translation_key, "test_feature")
         self.assertIs(entity.client, self.client)
-        self.assertEqual(entity.telemetry_data["battery"], 82)
+        self.assertEqual(entity.telemetry_data["serial_number"], "SR1A_ENTITIES_999")
 
     async def test_device_info_structure(self) -> None:
         """Vérifie que _attr_device_info contient toutes les métadonnées exigées par Home Assistant."""
@@ -293,106 +296,8 @@ class TestSevenhugsBaseEntity(unittest.IsolatedAsyncioTestCase):
         await self.coord.async_refresh()
 
 
-class TestSevenhugsSensorPlatform(unittest.IsolatedAsyncioTestCase):
-    """Vérifie la plateforme de capteurs (Battery, WifiSignal, ActiveScreen) et son initialisation."""
-
-    async def asyncSetUp(self) -> None:
-        self.hass = HomeAssistant()
-        self.client = MockSmartRemoteClientForEntities()
-        self.entry = ConfigEntry(
-            entry_id="sensor_entry_001",
-            domain=DOMAIN,
-            title="Smart Remote (5726)",
-            data={
-                CONF_HOST: "192.168.1.100",
-                CONF_PORT: 80,
-                CONF_SERIAL_NUMBER: "SR1A_SENSOR_123",
-                CONF_REMOTE_ID: "5726",
-            },
-            unique_id="SR1A_SENSOR_123",
-        )
-        self.client.default_responses["/api/settings"]["serial_number"] = "SR1A_SENSOR_123"
-        self.coord = SevenhugsDataUpdateCoordinator(self.hass, self.client, self.entry)
-        await self.coord.async_refresh()
-
-    def test_sensor_parallel_updates_constant(self) -> None:
-        """Vérifie que PARALLEL_UPDATES vaut 0 pour éviter les pollings concurrents."""
-        self.assertEqual(SENSOR_PARALLEL_UPDATES, 0)
-
-    async def test_battery_sensor_specifications(self) -> None:
-        """Vérifie les caractéristiques normatives du capteur de batterie."""
-        sensor = SevenhugsBatterySensor(self.coord, self.entry)
-        self.assertIsInstance(sensor, SensorEntity)
-        self.assertEqual(sensor.device_class, SensorDeviceClass.BATTERY)
-        self.assertEqual(sensor.native_unit_of_measurement, PERCENTAGE)
-        self.assertEqual(sensor.state_class, SensorStateClass.MEASUREMENT)
-        self.assertEqual(sensor.entity_category, EntityCategory.DIAGNOSTIC)
-        self.assertEqual(sensor.suggested_display_precision, 0)
-        self.assertEqual(sensor.unique_id, "SR1A_SENSOR_123_battery")
-        self.assertEqual(sensor.native_value, 82)
-        self.assertEqual(sensor.state, 82)
-
-    async def test_wifi_signal_sensor_specifications(self) -> None:
-        """Vérifie les caractéristiques normatives du capteur de force du signal Wi-Fi."""
-        sensor = SevenhugsWifiSignalSensor(self.coord, self.entry)
-        self.assertIsInstance(sensor, SensorEntity)
-        self.assertEqual(sensor.device_class, SensorDeviceClass.SIGNAL_STRENGTH)
-        self.assertEqual(sensor.native_unit_of_measurement, SIGNAL_STRENGTH_DECIBELS_MILLIWATT)
-        self.assertEqual(sensor.state_class, SensorStateClass.MEASUREMENT)
-        self.assertEqual(sensor.entity_category, EntityCategory.DIAGNOSTIC)
-        self.assertEqual(sensor.unique_id, "SR1A_SENSOR_123_wifi_signal")
-        self.assertEqual(sensor.native_value, -64)
-        self.assertEqual(sensor.state, -64)
-
-    async def test_active_screen_sensor_specifications(self) -> None:
-        """Vérifie les caractéristiques normatives du capteur d'écran ou mode actif."""
-        sensor = SevenhugsActiveScreenSensor(self.coord, self.entry)
-        self.assertIsInstance(sensor, SensorEntity)
-        self.assertIsNone(sensor.device_class)
-        self.assertEqual(sensor.entity_category, EntityCategory.DIAGNOSTIC)
-        self.assertEqual(sensor.icon, "mdi:cellphone")
-        self.assertEqual(sensor.unique_id, "SR1A_SENSOR_123_active_screen")
-        self.assertEqual(sensor.native_value, "MediaRemote")
-        self.assertEqual(sensor.state, "MediaRemote")
-
-    async def test_sensor_async_setup_entry_via_runtime_data(self) -> None:
-        """Vérifie l'enregistrement des 3 capteurs via entry.runtime_data."""
-        self.entry.runtime_data = SevenhugsData(client=self.client, session=MagicMock(), coordinator=self.coord)
-        added_entities: list[SensorEntity] = []
-
-        def add_entities_callback(new_entities: list[SensorEntity]) -> None:
-            added_entities.extend(new_entities)
-
-        await sensor_setup_entry(self.hass, self.entry, add_entities_callback)
-
-        self.assertEqual(len(added_entities), 3)
-        classes = {type(e) for e in added_entities}
-        self.assertEqual(
-            classes,
-            {SevenhugsBatterySensor, SevenhugsWifiSignalSensor, SevenhugsActiveScreenSensor},
-        )
-
-    async def test_sensor_async_setup_entry_via_hass_data_fallback(self) -> None:
-        """Vérifie le repli sur hass.data[DOMAIN][entry_id] si runtime_data est absent."""
-        self.entry.runtime_data = None
-        self.hass.data[DOMAIN] = {self.entry.entry_id: {"coordinator": self.coord}}
-
-        added_entities: list[SensorEntity] = []
-        await sensor_setup_entry(self.hass, self.entry, added_entities.extend)
-        self.assertEqual(len(added_entities), 3)
-
-    async def test_sensor_async_setup_entry_missing_coordinator(self) -> None:
-        """Vérifie la robustesse si le coordinateur est introuvable (aucune entité ajoutée)."""
-        self.entry.runtime_data = None
-        self.hass.data.clear()
-
-        added_entities: list[SensorEntity] = []
-        await sensor_setup_entry(self.hass, self.entry, added_entities.extend)
-        self.assertEqual(len(added_entities), 0)
-
-
 class TestSevenhugsBinarySensorPlatform(unittest.IsolatedAsyncioTestCase):
-    """Vérifie la plateforme de capteurs binaires (Charging, Connectivity) et l'invariant de disponibilité."""
+    """Vérifie la plateforme de capteur binaire (Connectivity) et l'invariant de disponibilité."""
 
     async def asyncSetUp(self) -> None:
         self.hass = HomeAssistant()
@@ -417,27 +322,9 @@ class TestSevenhugsBinarySensorPlatform(unittest.IsolatedAsyncioTestCase):
         """Vérifie que PARALLEL_UPDATES vaut 0."""
         self.assertEqual(BINARY_SENSOR_PARALLEL_UPDATES, 0)
 
-    async def test_charging_binary_sensor_specifications(self) -> None:
-        """Vérifie le capteur de charge / socle."""
-        sensor = SevenhugsChargingBinarySensor(self.coord, self.entry)
-        self.assertIsInstance(sensor, BinarySensorEntity)
-        self.assertEqual(sensor.device_class, BinarySensorDeviceClass.BATTERY_CHARGING)
-        self.assertEqual(sensor.entity_category, EntityCategory.DIAGNOSTIC)
-        self.assertEqual(sensor.unique_id, "SR1A_BSENSOR_456_charging")
-        self.assertFalse(sensor.is_on)
-        self.assertEqual(sensor.state, "off")
-        self.assertEqual(sensor.extra_state_attributes, {"docked": False})
-
-        # Modification des données de télémétrie : mise en charge sur socle
-        self.coord.data["charging"] = True
-        self.coord.data["docked"] = True
-        self.assertTrue(sensor.is_on)
-        self.assertEqual(sensor.state, "on")
-        self.assertEqual(sensor.extra_state_attributes, {"docked": True})
-
     async def test_connectivity_binary_sensor_critical_availability_invariant(self) -> None:
         """Vérifie l'invariant critique : connectivity reste disponible (available=True) pour rapporter 'off'."""
-        sensor = SevenhugsConnectivityBinarySensor(self.coord, self.entry)
+        sensor = SmartRemoteConnectivityBinarySensor(self.coord, self.entry)
         self.assertIsInstance(sensor, BinarySensorEntity)
         self.assertEqual(sensor.device_class, BinarySensorDeviceClass.CONNECTIVITY)
         self.assertEqual(sensor.entity_category, EntityCategory.DIAGNOSTIC)
@@ -483,17 +370,17 @@ class TestSevenhugsBinarySensorPlatform(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sensor.extra_state_attributes, {"consecutive_failures": 0})
 
     async def test_binary_sensor_async_setup_entry(self) -> None:
-        """Vérifie l'enregistrement des 2 capteurs binaires."""
+        """Vérifie l'enregistrement du capteur binaire de connectivité."""
         self.entry.runtime_data = SevenhugsData(client=self.client, session=MagicMock(), coordinator=self.coord)
         added_entities: list[BinarySensorEntity] = []
 
         await binary_sensor_setup_entry(self.hass, self.entry, added_entities.extend)
 
-        self.assertEqual(len(added_entities), 2)
+        self.assertEqual(len(added_entities), 1)
         classes = {type(e) for e in added_entities}
         self.assertEqual(
             classes,
-            {SevenhugsChargingBinarySensor, SevenhugsConnectivityBinarySensor},
+            {SmartRemoteConnectivityBinarySensor},
         )
 
 
@@ -618,7 +505,7 @@ class TestSevenhugsButtonPlatform(unittest.IsolatedAsyncioTestCase):
         self.client.side_effects["/api/config"] = SevenhugsConnectionError("Connection timeout")
         with self.assertRaises(HomeAssistantError) as ctx2:
             await button.async_press()
-        self.assertIn("Impossible de joindre la télécommande Sevenhugs pour sauvegarder", str(ctx2.exception))
+        self.assertIn("Impossible de joindre la télécommande Smart Remote pour sauvegarder", str(ctx2.exception))
 
         # 3. Erreur inattendue
         self.client.side_effects["/api/config"] = TypeError("Serialization bug")
@@ -685,10 +572,9 @@ class TestComponentLifecycleAndPlatformForwarding(unittest.IsolatedAsyncioTestCa
         self.assertIsNotNone(runtime_data.client)
         self.assertIsNotNone(runtime_data.session)
 
-        # Vérification du forwarding vers PLATFORMS (sensor, binary_sensor, button)
+        # Vérification du forwarding vers PLATFORMS (binary_sensor, button)
         forwarded = self.hass.config_entries.forwarded_platforms.get(self.entry.entry_id, [])
-        self.assertEqual(len(forwarded), 3)
-        self.assertIn(Platform.SENSOR, forwarded)
+        self.assertEqual(len(forwarded), 2)
         self.assertIn(Platform.BINARY_SENSOR, forwarded)
         self.assertIn(Platform.BUTTON, forwarded)
 
@@ -698,8 +584,7 @@ class TestComponentLifecycleAndPlatformForwarding(unittest.IsolatedAsyncioTestCa
 
         # Plateformes déchargées
         unloaded = self.hass.config_entries.unloaded_platforms.get(self.entry.entry_id, [])
-        self.assertEqual(len(unloaded), 3)
-        self.assertIn(Platform.SENSOR, unloaded)
+        self.assertEqual(len(unloaded), 2)
         self.assertIn(Platform.BINARY_SENSOR, unloaded)
         self.assertIn(Platform.BUTTON, unloaded)
 

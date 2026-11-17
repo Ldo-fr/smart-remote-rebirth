@@ -237,136 +237,17 @@ class TestSevenhugsDataUpdateCoordinatorTelemetry(unittest.IsolatedAsyncioTestCa
         """Vérifie le rafraîchissement nominal complet et la population du cache."""
         data = await self.coord._async_update_data()
 
-        self.assertEqual(data["battery"], 88)
-        self.assertEqual(data["wifi_signal"], -58)
-        self.assertTrue(data["charging"])
-        self.assertTrue(data["docked"])
-        self.assertEqual(data["active_screen"], "MediaPlayer")
         self.assertTrue(data["connected"])
         self.assertEqual(data["serial_number"], "SR1A987654321")
         self.assertEqual(data["mac_address"], "AA:BB:CC:DD:EE:FF")
         self.assertEqual(data["firmware_version"], "v0.76.4")
         self.assertEqual(data["name"], "Smart Remote Salon")
+        self.assertIsInstance(data["raw_settings"], dict)
 
         # Cache synchronisé et compteur d'échecs à 0
-        self.assertEqual(self.coord.cached_data["battery"], 88)
+        self.assertEqual(self.coord.cached_data["serial_number"], "SR1A987654321")
         self.assertEqual(self.coord.consecutive_failures, 0)
         self.assertIn(("GET", "/api/settings"), self.mock_client.request_calls)
-
-    async def test_battery_clamping_and_fault_tolerance(self) -> None:
-        """Vérifie le clamping strict [0, 100] et la gestion des formats de batterie anormaux."""
-        # 1. Clamping au-dessus de 100 (ex: 145%)
-        self.mock_client.settings_response = {"battery": 145}
-        data1 = await self.coord._async_update_data()
-        self.assertEqual(data1["battery"], 100)
-        self.assertEqual(self.coord.battery, 100)
-
-        # 2. Clamping en-dessous de 0 (ex: -12%)
-        self.mock_client.settings_response = {"battery": -12}
-        data2 = await self.coord._async_update_data()
-        self.assertEqual(data2["battery"], 0)
-        self.assertEqual(self.coord.battery, 0)
-
-        # 3. Chaîne numérique "73"
-        self.mock_client.settings_response = {"battery": "73"}
-        data3 = await self.coord._async_update_data()
-        self.assertEqual(data3["battery"], 73)
-        self.assertEqual(self.coord.battery, 73)
-
-        # 4. Chaîne non-numérique "invalid" -> repli vers cache précédent (73)
-        self.mock_client.settings_response = {"battery": "invalid_val"}
-        data4 = await self.coord._async_update_data()
-        self.assertEqual(data4["battery"], 73)
-
-        # 5. Valeur None sans cache préalable -> None
-        fresh_coord = SevenhugsDataUpdateCoordinator(self.hass, self.mock_client, self.entry)
-        self.mock_client.settings_response = {"battery": None}
-        data5 = await fresh_coord._async_update_data()
-        self.assertIsNone(data5["battery"])
-
-    async def test_wifi_signal_and_rssi_fallback(self) -> None:
-        """Vérifie l'extraction du signal Wi-Fi avec repli sur 'rssi' et filtrage des valeurs non valides."""
-        # 1. Signal Wi-Fi nominal
-        self.mock_client.settings_response = {"wifi_signal": -67}
-        data1 = await self.coord._async_update_data()
-        self.assertEqual(data1["wifi_signal"], -67)
-        self.assertEqual(self.coord.wifi_signal, -67)
-
-        # 2. Repli sur 'rssi' si 'wifi_signal' est None
-        self.mock_client.settings_response = {"wifi_signal": None, "rssi": -74}
-        data2 = await self.coord._async_update_data()
-        self.assertEqual(data2["wifi_signal"], -74)
-        self.assertEqual(self.coord.wifi_signal, -74)
-
-        # 3. RSSI sous forme de chaîne "-82"
-        self.mock_client.settings_response = {"rssi": "-82"}
-        data3 = await self.coord._async_update_data()
-        self.assertEqual(data3["wifi_signal"], -82)
-
-        # 4. Chaîne corrompue -> None
-        self.mock_client.settings_response = {"wifi_signal": "not_an_int"}
-        data4 = await self.coord._async_update_data()
-        self.assertIsNone(data4["wifi_signal"])
-        self.assertIsNone(self.coord.wifi_signal)
-
-        # 5. Clés absentes -> None
-        self.mock_client.settings_response = {}
-        data5 = await self.coord._async_update_data()
-        self.assertIsNone(data5["wifi_signal"])
-
-    async def test_charging_and_docked_state_matrix(self) -> None:
-        """Vérifie les combinaisons de charge et de socle (charging, docked)."""
-        # (charging=True, docked=False)
-        self.mock_client.settings_response = {"charging": True, "docked": False}
-        data1 = await self.coord._async_update_data()
-        self.assertTrue(data1["charging"])
-        self.assertFalse(data1["docked"])
-        self.assertTrue(self.coord.charging)
-
-        # (charging=False, docked=True) -> data["charging"]=False, data["docked"]=True, mais coord.charging=True via docked
-        self.mock_client.settings_response = {"charging": False, "docked": True}
-        data2 = await self.coord._async_update_data()
-        self.assertFalse(data2["charging"])
-        self.assertTrue(data2["docked"])
-        self.assertTrue(self.coord.charging)
-
-        # Docked seul sans clé charging -> charging repli sur docked (True)
-        self.mock_client.settings_response = {"docked": True}
-        data2b = await self.coord._async_update_data()
-        self.assertTrue(data2b["charging"])
-        self.assertTrue(data2b["docked"])
-        self.assertTrue(self.coord.charging)
-
-        # (charging=False, docked=False)
-        self.mock_client.settings_response = {"charging": False, "docked": False}
-        data3 = await self.coord._async_update_data()
-        self.assertFalse(data3["charging"])
-        self.assertFalse(data3["docked"])
-        self.assertFalse(self.coord.charging)
-
-    async def test_active_screen_normalization_and_fallback(self) -> None:
-        """Vérifie la normalisation de l'écran actif avec repli sur current_screen, cache ou 'Home'."""
-        # 1. active_screen explicite
-        self.mock_client.settings_response = {"active_screen": "HueLights"}
-        data1 = await self.coord._async_update_data()
-        self.assertEqual(data1["active_screen"], "HueLights")
-        self.assertEqual(self.coord.active_screen, "HueLights")
-
-        # 2. current_screen de repli
-        self.mock_client.settings_response = {"current_screen": "AppleTV"}
-        data2 = await self.coord._async_update_data()
-        self.assertEqual(data2["active_screen"], "AppleTV")
-
-        # 3. Valeurs vides -> conservation du cache précédent
-        self.mock_client.settings_response = {"active_screen": None, "current_screen": None}
-        data3 = await self.coord._async_update_data()
-        self.assertEqual(data3["active_screen"], "AppleTV")
-
-        # 4. Premier appel sans cache -> "Home"
-        fresh_coord = SevenhugsDataUpdateCoordinator(self.hass, self.mock_client, self.entry)
-        self.mock_client.settings_response = {}
-        data4 = await fresh_coord._async_update_data()
-        self.assertEqual(data4["active_screen"], "Home")
 
     async def test_non_dict_and_empty_payload_resilience(self) -> None:
         """Vérifie le traitement d'une réponse non-dictionnaire sans crash."""
@@ -414,8 +295,8 @@ class TestSevenhugsDataUpdateCoordinatorSleepResilience(unittest.IsolatedAsyncio
         self.assertEqual(self.coord.consecutive_failures, 1)
         self.assertTrue(self.coord.last_update_success)
         self.assertTrue(self.coord.is_connected)
-        self.assertEqual(self.coord.data["battery"], initial_cache["battery"])
-        self.assertEqual(self.coord.cached_data["battery"], initial_cache["battery"])
+        self.assertEqual(self.coord.data["serial_number"], initial_cache["serial_number"])
+        self.assertEqual(self.coord.cached_data["serial_number"], initial_cache["serial_number"])
 
         # --- Échec 2 : Timeout matériel ---
         self.mock_client.side_effect = asyncio.TimeoutError("Socket read timeout")
@@ -424,8 +305,8 @@ class TestSevenhugsDataUpdateCoordinatorSleepResilience(unittest.IsolatedAsyncio
         self.assertEqual(self.coord.consecutive_failures, 2)
         self.assertTrue(self.coord.last_update_success)
         self.assertTrue(self.coord.is_connected)
-        self.assertEqual(self.coord.data["battery"], initial_cache["battery"])
-        self.assertEqual(self.coord.cached_data["battery"], initial_cache["battery"])
+        self.assertEqual(self.coord.data["serial_number"], initial_cache["serial_number"])
+        self.assertEqual(self.coord.cached_data["serial_number"], initial_cache["serial_number"])
 
     async def test_sleep_resilience_third_failure_raises_update_failed_and_marks_unavailable(self) -> None:
         """Vérifie qu'au 3ème échec consécutif, UpdateFailed est levé et is_connected bascule à False."""
@@ -451,7 +332,6 @@ class TestSevenhugsDataUpdateCoordinatorSleepResilience(unittest.IsolatedAsyncio
         # CRITIQUE : Le cache mémoire reste STRICTEMENT préservé malgré l'indisponibilité
         self.assertIsNotNone(self.coord.cached_data)
         self.assertEqual(self.coord.cached_data["serial_number"], "SR1A987654321")
-        self.assertEqual(self.coord.cached_data["battery"], 88)
 
     async def test_sleep_resilience_subsequent_failures_maintain_unavailable_and_cache(self) -> None:
         """Vérifie que les échecs 4 et 5 maintiennent l'indisponibilité et conservent le cache."""
@@ -464,7 +344,7 @@ class TestSevenhugsDataUpdateCoordinatorSleepResilience(unittest.IsolatedAsyncio
         self.assertFalse(self.coord.last_update_success)
         self.assertFalse(self.coord.is_connected)
         self.assertIsInstance(self.coord.last_exception, UpdateFailed)
-        self.assertEqual(self.coord.cached_data["battery"], 88)
+        self.assertEqual(self.coord.cached_data["serial_number"], "SR1A987654321")
 
     async def test_recovery_resets_failures_and_restores_connectivity(self) -> None:
         """Vérifie la restauration nominale après 3 échecs consécutifs."""
@@ -478,14 +358,13 @@ class TestSevenhugsDataUpdateCoordinatorSleepResilience(unittest.IsolatedAsyncio
 
         # Rétablissement de la connexion
         self.mock_client.side_effect = None
-        self.mock_client.settings_response = {"battery": 92, "active_screen": "Settings"}
+        self.mock_client.settings_response = {"serial_number": "SR1A987654321", "firmware_version": "v0.76.5"}
         await self.coord.async_refresh()
 
         self.assertEqual(self.coord.consecutive_failures, 0)
         self.assertTrue(self.coord.last_update_success)
         self.assertTrue(self.coord.is_connected)
-        self.assertEqual(self.coord.battery, 92)
-        self.assertEqual(self.coord.active_screen, "Settings")
+        self.assertEqual(self.coord.firmware_version, "v0.76.5")
 
     async def test_network_errors_matrix(self) -> None:
         """Vérifie que chaque type d'exception dans _NETWORK_ERRORS incrémente le compteur."""
@@ -545,15 +424,13 @@ class TestSevenhugsDataUpdateCoordinatorWakeUp(unittest.IsolatedAsyncioTestCase)
 
         # Déclenchement du réveil événementiel
         self.mock_client.side_effect = None
-        self.mock_client.settings_response = {"battery": 97, "active_screen": "WakeScreen"}
+        self.mock_client.settings_response = {"serial_number": "SR1A987654321", "firmware_version": "v0.76.4"}
 
         await self.coord.async_wake_up(reason="mdns_announcement")
 
         self.assertEqual(self.coord.consecutive_failures, 0)
         self.assertTrue(self.coord.last_update_success)
         self.assertTrue(self.coord.is_connected)
-        self.assertEqual(self.coord.battery, 97)
-        self.assertEqual(self.coord.active_screen, "WakeScreen")
 
     async def test_async_handle_wake_up_alias(self) -> None:
         """Vérifie que async_handle_wake_up fonctionne de manière identique à async_wake_up."""
@@ -640,18 +517,6 @@ class TestSevenhugsDataUpdateCoordinatorProperties(unittest.IsolatedAsyncioTestC
 
     def test_properties_values_and_types(self) -> None:
         """Valide le typage et les valeurs retournées par toutes les propriétés."""
-        self.assertIsInstance(self.coord.battery, int)
-        self.assertEqual(self.coord.battery, 88)
-
-        self.assertIsInstance(self.coord.wifi_signal, int)
-        self.assertEqual(self.coord.wifi_signal, -58)
-
-        self.assertIsInstance(self.coord.charging, bool)
-        self.assertTrue(self.coord.charging)
-
-        self.assertIsInstance(self.coord.active_screen, str)
-        self.assertEqual(self.coord.active_screen, "MediaPlayer")
-
         self.assertIsInstance(self.coord.is_connected, bool)
         self.assertTrue(self.coord.is_connected)
 
@@ -664,20 +529,18 @@ class TestSevenhugsDataUpdateCoordinatorProperties(unittest.IsolatedAsyncioTestC
     def test_cached_data_immutability(self) -> None:
         """Vérifie que la mutation de la copie de cached_data n'altère pas l'état interne."""
         copy_cache = self.coord.cached_data
-        copy_cache["battery"] = 0
+        copy_cache["serial_number"] = "corrupted_sn"
         copy_cache["corrupted_key"] = "bad"
 
-        self.assertEqual(self.coord.cached_data["battery"], 88)
+        self.assertEqual(self.coord.cached_data["serial_number"], "SR1A987654321")
         self.assertNotIn("corrupted_key", self.coord.cached_data)
 
     async def test_properties_fallback_to_cache_when_data_is_none(self) -> None:
         """Vérifie que les propriétés se replient sur _cached_data si self.data est temporairement None."""
         self.coord.data = None
-        self.assertEqual(self.coord.battery, 88)
-        self.assertEqual(self.coord.wifi_signal, -58)
-        self.assertTrue(self.coord.charging)
-        self.assertEqual(self.coord.active_screen, "MediaPlayer")
         self.assertEqual(self.coord.serial_number, "SR1A987654321")
+        self.assertEqual(self.coord.mac_address, "AA:BB:CC:DD:EE:FF")
+        self.assertEqual(self.coord.firmware_version, "v0.76.4")
 
 
 class TestSevenhugsDataUpdateCoordinatorListeners(unittest.IsolatedAsyncioTestCase):

@@ -179,7 +179,7 @@ class AdversarialBaseEntityHarness:
 
         # 2. Délégation client et télémétrie
         self.assert_true(entity.client is client, "entity.client délègue vers coord.client")
-        self.assert_equal(entity.telemetry_data.get("battery"), 88, "telemetry_data expose les données du coordinateur")
+        self.assert_equal(entity.telemetry_data.get("serial_number"), "SR1A11223344", "telemetry_data expose les données du coordinateur")
 
         # 3. Entité sans description optionnelle
         entity_no_desc = SevenhugsBaseEntity(coord, entry, "active_screen")
@@ -306,7 +306,7 @@ class AdversarialBaseEntityHarness:
         self.assert_equal(coord.consecutive_failures, 1, "Échec consécutif = 1")
         self.assert_true(coord.last_update_success is True, "Tolérance Deep Sleep (1/3) : last_update_success reste True")
         self.assert_true(entity.available is True, "Entité reste available à l'échec 1")
-        self.assert_equal(coord.battery, 88, "Données en cache préservées à l'échec 1")
+        self.assert_equal(coord.serial_number, "SR1A_AVAIL", "Données en cache préservées à l'échec 1")
 
         # 3. Deuxième échec réseau (Deep Sleep suite)
         client.exception_to_raise = TimeoutError("Timeout matériel")
@@ -332,12 +332,12 @@ class AdversarialBaseEntityHarness:
 
         # 6. Réveil événementiel (async_wake_up)
         client.exception_to_raise = None
-        client.response_data["battery"] = 92
+        client.response_data["firmware_version"] = "0.76.5"
         await coord.async_wake_up(reason="mDNS")
         self.assert_equal(coord.consecutive_failures, 0, "async_wake_up réinitialise failures à 0")
         self.assert_true(coord.last_update_success is True, "last_update_success restauré à True")
         self.assert_true(entity.available is True, "Entité redevient available = True")
-        self.assert_equal(coord.battery, 92, "Télémétrie mise à jour avec nouvelle valeur 92%")
+        self.assert_equal(coord.firmware_version, "0.76.5", "Télémétrie mise à jour")
 
         # 7. Erreur inattendue hors réseau (ex: ValueError) -> indisponibilité immédiate
         client.exception_to_raise = RuntimeError("Unexpected internal crash")
@@ -380,46 +380,13 @@ class AdversarialBaseEntityHarness:
         client = MockClient("chaine non dictionnaire")
         coord = SevenhugsDataUpdateCoordinator(hass, client, entry)
         await coord.async_refresh()
-        entity = SevenhugsBaseEntity(coord, entry, "battery")
+        entity = SevenhugsBaseEntity(coord, entry, "connectivity")
 
-        self.assert_equal(entity.telemetry_data.get("battery"), 100, "Repli batterie par défaut 100% sur réponse corrompue")
-        self.assert_equal(coord.wifi_signal, None, "wifi_signal est None sur données vides")
-        self.assert_equal(coord.charging, False, "charging est False par défaut")
-        self.assert_equal(coord.active_screen, "Home", "active_screen repli 'Home'")
+        self.assert_equal(coord.serial_number, "SR1A_PARTIAL", "serial_number repli sur entry.data")
         self.assert_equal(coord.mac_address, None, "mac_address None")
         self.assert_equal(coord.firmware_version, "v0.76.4", "firmware_version repli 'v0.76.4'")
 
-        # Scénario 4.2 : Télémétrie partielle (seul wifi_signal présent en float)
-        client.response_data = {"wifi_signal": -72.6}
-        await coord.async_refresh()
-        self.assert_equal(coord.wifi_signal, -72, "wifi_signal float converti en int (-72)")
-        self.assert_equal(coord.battery, 100, "battery maintenue depuis le cache")
-
-        # Scénario 4.3 : Batterie hors bornes (valeur > 100 et < 0)
-        client.response_data = {"battery": 150}
-        await coord.async_refresh()
-        self.assert_equal(coord.battery, 100, "Batterie 150 plafonnée à 100%")
-
-        client.response_data = {"battery": -25}
-        await coord.async_refresh()
-        self.assert_equal(coord.battery, 0, "Batterie -25 planchée à 0%")
-
-        # Scénario 4.4 : Type incompatible pour batterie
-        client.response_data = {"battery": "invalide"}
-        await coord.async_refresh()
-        self.assert_equal(coord.battery, 0, "Batterie invalide conserve valeur précédente en cache")
-
-        # Scénario 4.5 : Alternative 'rssi' au lieu de 'wifi_signal'
-        client.response_data = {"rssi": -63}
-        await coord.async_refresh()
-        self.assert_equal(coord.wifi_signal, -63, "Champ alternatif 'rssi' détecté et exploité")
-
-        # Scénario 4.6 : Alternative 'docked' au lieu de 'charging'
-        client.response_data = {"docked": True}
-        await coord.async_refresh()
-        self.assert_true(coord.charging is True, "Champ alternatif 'docked' reflété sur charging")
-
-        # Scénario 4.7 : coordinator.data est None
+        # Scénario 4.2 : coordinator.data est None
         coord.data = None
         self.assert_equal(entity.telemetry_data, {}, "telemetry_data retourne dict vide quand coord.data est None")
 
@@ -515,7 +482,7 @@ class AdversarialBaseEntityHarness:
 
             @property
             def native_value(self) -> int | None:
-                return self.coordinator.battery
+                return self.telemetry_data.get("raw_settings", {}).get("battery")
 
         class SevenhugsChargingBinarySensor(SevenhugsBaseEntity, BinarySensorEntity):
             _attr_device_class = BinarySensorDeviceClass.BATTERY_CHARGING
@@ -526,7 +493,7 @@ class AdversarialBaseEntityHarness:
 
             @property
             def is_on(self) -> bool:
-                return self.coordinator.charging
+                return bool(self.telemetry_data.get("raw_settings", {}).get("charging"))
 
         class SevenhugsPingButton(SevenhugsBaseEntity, ButtonEntity):
             _attr_device_class = ButtonDeviceClass.RESTART
@@ -642,6 +609,17 @@ class AdversarialBaseEntityHarness:
                 print(f"  - {w}")
         print("============================================================")
         return self.failed == 0
+
+
+def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
+    """Protocole de découverte unittest."""
+    def _run() -> None:
+        harness = AdversarialBaseEntityHarness()
+        assert asyncio.run(harness.run_all()), "AdversarialBaseEntityHarness failed"
+
+    suite = unittest.TestSuite()
+    suite.addTest(unittest.FunctionTestCase(_run, description="test_adversarial_m1_base_entity_harness"))
+    return suite
 
 
 if __name__ == "__main__":

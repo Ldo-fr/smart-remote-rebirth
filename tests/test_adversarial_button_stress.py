@@ -150,7 +150,7 @@ class TestAdversarialButtonStress(unittest.IsolatedAsyncioTestCase):
                     await button.async_press()
 
                 # Vérifie le message et la chaîne causale
-                self.assertIn("Échec de la synchronisation forcée Sevenhugs", str(ctx.exception))
+                self.assertIn("Échec de la synchronisation forcée Smart Remote", str(ctx.exception))
                 self.assertIs(ctx.exception.__cause__, exc)
 
     async def test_force_sync_thundering_herd_concurrency(self) -> None:
@@ -182,11 +182,11 @@ class TestAdversarialButtonStress(unittest.IsolatedAsyncioTestCase):
 
         # 1. Succès initial pour amorcer le cache _cached_data
         client.async_request.side_effect = None
-        client.async_request.return_value = {"battery": 90, "charging": False, "wifi_signal": -60}
+        client.async_request.return_value = {"serial_number": "SR1A_CHALLENGER_007", "firmware_version": "v0.76.4"}
         await button.async_press()
         self.assertTrue(real_coord.last_update_success)
         self.assertEqual(real_coord.consecutive_failures, 0)
-        self.assertEqual(real_coord.battery, 90)
+        self.assertTrue(real_coord.is_connected)
 
         # 2. Bascule en défaillance réseau
         client.async_request.side_effect = SevenhugsConnectionError("Remote completely dead")
@@ -255,7 +255,7 @@ class TestAdversarialButtonStress(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(HomeAssistantError) as ctx:
                     await button.async_press()
 
-                self.assertIn("Impossible de joindre la télécommande Sevenhugs lors du ping", str(ctx.exception))
+                self.assertIn("Impossible de joindre la télécommande Smart Remote lors du ping", str(ctx.exception))
                 self.assertIs(ctx.exception.__cause__, timeout_exc)
                 # Le rafraîchissement ne doit PAS être appelé si le ping /api/hello échoue
                 self.mock_coordinator.async_request_refresh.assert_not_called()
@@ -280,7 +280,7 @@ class TestAdversarialButtonStress(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(HomeAssistantError) as ctx:
                     await button.async_press()
 
-                self.assertIn("Impossible de joindre la télécommande Sevenhugs lors du ping", str(ctx.exception))
+                self.assertIn("Impossible de joindre la télécommande Smart Remote lors du ping", str(ctx.exception))
                 self.assertIs(ctx.exception.__cause__, err)
                 self.mock_coordinator.async_request_refresh.assert_not_called()
 
@@ -295,7 +295,7 @@ class TestAdversarialButtonStress(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(HomeAssistantError) as ctx:
             await button.async_press()
 
-        self.assertIn("Échec d'authentification lors du ping Sevenhugs", str(ctx.exception))
+        self.assertIn("Échec d'authentification lors du ping Smart Remote", str(ctx.exception))
         self.assertIs(ctx.exception.__cause__, auth_error)
         self.mock_coordinator.async_request_refresh.assert_not_called()
 
@@ -311,7 +311,7 @@ class TestAdversarialButtonStress(unittest.IsolatedAsyncioTestCase):
             await button.async_press()
 
         # Attrapé par la clause générique except Exception
-        self.assertIn("Erreur inattendue lors du ping Sevenhugs", str(ctx.exception))
+        self.assertIn("Erreur inattendue lors du ping Smart Remote", str(ctx.exception))
         self.assertIs(ctx.exception.__cause__, refresh_err)
 
     async def test_ping_thundering_herd_concurrency(self) -> None:
@@ -397,7 +397,7 @@ class TestAdversarialButtonStress(unittest.IsolatedAsyncioTestCase):
         self.mock_client.async_request.side_effect = SevenhugsAuthError("Forbidden 403")
         with self.assertRaises(HomeAssistantError) as ctx:
             await button.async_press()
-        self.assertIn("Échec d'authentification lors de la sauvegarde Sevenhugs", str(ctx.exception))
+        self.assertIn("Échec d'authentification lors de la sauvegarde Smart Remote", str(ctx.exception))
 
         # Comm Errors
         for comm_err in [
@@ -410,13 +410,13 @@ class TestAdversarialButtonStress(unittest.IsolatedAsyncioTestCase):
                 self.mock_client.async_request.side_effect = comm_err
                 with self.assertRaises(HomeAssistantError) as ctx:
                     await button.async_press()
-                self.assertIn("Impossible de joindre la télécommande Sevenhugs pour sauvegarder la configuration", str(ctx.exception))
+                self.assertIn("Impossible de joindre la télécommande Smart Remote pour sauvegarder la configuration", str(ctx.exception))
 
         # Erreur inattendue
         self.mock_client.async_request.side_effect = KeyError("Corrupted internal crypto state")
         with self.assertRaises(HomeAssistantError) as ctx:
             await button.async_press()
-        self.assertIn("Erreur inattendue lors de la sauvegarde Sevenhugs", str(ctx.exception))
+        self.assertIn("Erreur inattendue lors de la sauvegarde Smart Remote", str(ctx.exception))
 
     async def test_backup_config_state_integrity_after_failed_press(self) -> None:
         """Garantit qu'un appui échoué n'efface ni ne corrompt le backup précédent réussi."""

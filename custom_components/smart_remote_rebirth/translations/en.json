@@ -82,21 +82,7 @@
     }
   },
   "entity": {
-    "sensor": {
-      "battery": {
-        "name": "Battery"
-      },
-      "wifi_signal": {
-        "name": "Wi-Fi signal"
-      },
-      "active_screen": {
-        "name": "Active screen"
-      }
-    },
     "binary_sensor": {
-      "charging": {
-        "name": "Charging"
-      },
       "connectivity": {
         "name": "Connectivity"
       }

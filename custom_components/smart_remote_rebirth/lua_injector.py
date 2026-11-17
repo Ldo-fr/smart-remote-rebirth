@@ -90,6 +90,7 @@ DEFAULT_DOMAIN_ACTIONS: dict[str, str] = {
 __all__ = [
     "DEFAULT_DOMAIN_ACTIONS",
     "SevenhugsLuaInjector",
+    "SmartRemoteLuaInjector",
 ]
 
 
@@ -103,7 +104,7 @@ class _AwaitableList(list):
         return _resolve().__await__()
 
 
-class SevenhugsLuaInjector:
+class SmartRemoteLuaInjector:
     """Gestionnaire de traduction et d'injection des boutons UI vers la télécommande."""
 
     def __init__(
@@ -437,3 +438,7 @@ class SevenhugsLuaInjector:
                 self.hass.async_create_task(coordinator.async_handle_wake_up(reason))
         except Exception as err:
             _LOGGER.debug("Notification coordinateur ignorée : %s", err)
+
+
+# Alias rétro-compatible
+SevenhugsLuaInjector = SmartRemoteLuaInjector

@@ -80,8 +80,8 @@ def _decode_prop(val: Any) -> str:
     return str(val) if val is not None else ""
 
 
-class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Gestionnaire du flux de configuration Sevenhugs Smart Remote."""
+class SmartRemoteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Gestionnaire du flux de configuration Smart Remote Rebirth."""
 
     VERSION = 1
 
@@ -417,7 +417,7 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
         """Retourne le gestionnaire d'options."""
-        return SevenhugsOptionsFlowHandler(config_entry)
+        return SmartRemoteOptionsFlowHandler(config_entry)
 
     async def _async_probe_host(self, host: str, port: int) -> bool:
         """Vérifie la joignabilité d'un hôte sur le port HTTP 80."""
@@ -458,7 +458,7 @@ class SevenhugsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await client.close()
 
 
-class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
+class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
     """Gestionnaire d'options avancées pour Smart Remote Rebirth."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry | None = None) -> None:
@@ -755,3 +755,8 @@ class SevenhugsOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="init",
             data_schema=data_schema,
         )
+
+
+# Alias rétro-compatibles
+SevenhugsConfigFlow = SmartRemoteConfigFlow
+SevenhugsOptionsFlowHandler = SmartRemoteOptionsFlowHandler

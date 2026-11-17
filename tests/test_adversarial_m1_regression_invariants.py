@@ -76,21 +76,20 @@ class AdversarialMilestone1Harness:
             print(f"  [FAIL] {name}: {exc}")
 
     # =========================================================================
-    # AXIS 1: len(PLATFORMS) == 3 across all import paths
+    # AXIS 1: len(PLATFORMS) == 2 across all import paths (FR-3)
     # =========================================================================
     def check_platforms_import_direct(self) -> None:
         from custom_components.smart_remote_rebirth.const import PLATFORMS
-        assert len(PLATFORMS) == 3, f"Expected len(PLATFORMS) == 3, got {len(PLATFORMS)}"
+        assert len(PLATFORMS) == 2, f"Expected len(PLATFORMS) == 2, got {len(PLATFORMS)}"
         platforms_str = [str(p).replace("Platform.", "").lower() for p in PLATFORMS]
-        assert "sensor" in platforms_str
         assert "binary_sensor" in platforms_str
         assert "button" in platforms_str
 
     def check_platforms_import_package(self) -> None:
         from custom_components.smart_remote_rebirth import PLATFORMS
-        assert len(PLATFORMS) == 3, f"Expected len(PLATFORMS) == 3, got {len(PLATFORMS)}"
+        assert len(PLATFORMS) == 2, f"Expected len(PLATFORMS) == 2, got {len(PLATFORMS)}"
         platforms_str = [str(p).replace("Platform.", "").lower() for p in PLATFORMS]
-        assert set(platforms_str) == {"sensor", "binary_sensor", "button"}
+        assert set(platforms_str) == {"binary_sensor", "button"}
 
     def check_platforms_fallback_path(self) -> None:
         # Simulate import without homeassistant.const
@@ -99,10 +98,10 @@ class AdversarialMilestone1Harness:
         try:
             sys.modules["homeassistant.const"] = None  # Force ImportError on import
             # Delete const from sys.modules to force reload
-            old_const = sys.modules.pop("custom_components.smart_remote_rebirth.const", None)
+            sys.modules.pop("custom_components.smart_remote_rebirth.const", None)
             const_mod = importlib.import_module("custom_components.smart_remote_rebirth.const")
-            assert len(const_mod.PLATFORMS) == 3, f"Fallback len(PLATFORMS) expected 3, got {len(const_mod.PLATFORMS)}"
-            assert const_mod.PLATFORMS == ["sensor", "binary_sensor", "button"]
+            assert len(const_mod.PLATFORMS) == 2, f"Fallback len(PLATFORMS) expected 2, got {len(const_mod.PLATFORMS)}"
+            assert const_mod.PLATFORMS == ["binary_sensor", "button"]
         finally:
             if old_ha_const is not None:
                 sys.modules["homeassistant.const"] = old_ha_const
@@ -404,15 +403,15 @@ class AdversarialMilestone1Harness:
         assert isinstance(CONF_TRIGGER_RESYNC, str) and CONF_TRIGGER_RESYNC == "trigger_resync"
         assert isinstance(DEFAULT_EXPOSED_DOMAINS, list)
         assert all(d in DEFAULT_EXPOSED_DOMAINS for d in ("light", "switch", "scene", "media_player"))
-        assert isinstance(EVENT_SEVENHUGS_BUTTON_PRESSED, str) and EVENT_SEVENHUGS_BUTTON_PRESSED == "sevenhugs_button_pressed"
-        assert isinstance(WEBHOOK_ID_PREFIX, str) and WEBHOOK_ID_PREFIX == "sevenhugs_"
+        assert isinstance(EVENT_SEVENHUGS_BUTTON_PRESSED, str) and EVENT_SEVENHUGS_BUTTON_PRESSED == "smart_remote_button_pressed"
+        assert isinstance(WEBHOOK_ID_PREFIX, str) and WEBHOOK_ID_PREFIX == "smart_remote_"
 
     def run_all(self) -> bool:
         print("=== ADVERSARIAL MILESTONE 1 REGRESSION & INVARIANTS HARNESS ===")
         # Axis 1
-        self.run_check("Axis 1: PLATFORMS import direct (len==3)", self.check_platforms_import_direct)
-        self.run_check("Axis 1: PLATFORMS import package (len==3)", self.check_platforms_import_package)
-        self.run_check("Axis 1: PLATFORMS fallback path without HA (len==3)", self.check_platforms_fallback_path)
+        self.run_check("Axis 1: PLATFORMS import direct (len==2)", self.check_platforms_import_direct)
+        self.run_check("Axis 1: PLATFORMS import package (len==2)", self.check_platforms_import_package)
+        self.run_check("Axis 1: PLATFORMS fallback path without HA (len==2)", self.check_platforms_fallback_path)
 
         # Axis 2
         self.run_check("Axis 2: ServiceCall attribute access", self.check_service_call_attributes)
@@ -443,6 +442,17 @@ class AdversarialMilestone1Harness:
                 print(f"  - {name}: {err}")
             return False
         return True
+
+
+def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
+    """Protocole de découverte unittest."""
+    def _run() -> None:
+        harness = AdversarialMilestone1Harness()
+        assert harness.run_all(), f"Adversarial M1 regression invariants failed: {harness.failures}"
+
+    suite = unittest.TestSuite()
+    suite.addTest(unittest.FunctionTestCase(_run, description="test_adversarial_m1_regression_invariants"))
+    return suite
 
 
 if __name__ == "__main__":

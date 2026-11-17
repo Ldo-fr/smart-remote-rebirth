@@ -260,15 +260,15 @@ Conformément aux capacités réelles de l'API `/api/settings` du firmware `v0.7
 
 ## 7. Feuille de Route (Roadmap)
 
-### ✅ Jalon v0.4 (Actuel) — Fondations & Contrôle Bidirectionnel par Webhooks
+### ✅ Jalon v0.4 — Fondations & Contrôle Bidirectionnel par Webhooks
 - Implémentation complète du protocole cryptographique (`crypto.py`, `client.py`).
 - Config Flow graphique (mDNS, IP, PIN SRP-6a, `reconfigure`, `reauth`).
 - Coordinateur résilient au Deep Sleep, Webhooks locaux (`local_only=True`), Injecteur Lua et Options Flow.
 
-### 🎯 Jalon v0.5 (Court Terme) — Alignement PRD, Nettoyage & Diagnostics HA
+### ✅ Jalon v0.5 (Actuel) — Alignement PRD, Nettoyage & Diagnostics HA
 - **Suppression des capteurs fantômes** : Retrait de `custom_components/smart_remote_rebirth/sensor.py`, retrait de `SevenhugsChargingBinarySensor` dans `binary_sensor.py`, et retrait des propriétés inutilisées (`battery`, `wifi_signal`, `charging`, `active_screen`) dans `coordinator.py` et les fichiers de traduction.
-- **Unification du nommage `SmartRemote*`** : Renommage des classes internes `Sevenhugs*` en `SmartRemote*` dans `custom_components/smart_remote_rebirth/` et `tests/`.
-- **Normalisation du dossier `tests/`** : Renommage des harnais `adversarial_*_harness.py` et `verify_m1_mocks.py` avec le préfixe `test_` pour que 100 % des tests du dossier `tests/` soient exécutés par `python -m unittest discover tests` en CI.
+- **Unification du nommage `SmartRemote*`** : Renommage des classes internes `Sevenhugs*` en `SmartRemote*` dans `custom_components/smart_remote_rebirth/` (avec alias de rétro-compatibilité) et `tests/`.
+- **Normalisation du dossier `tests/`** : Conversion des harnais `adversarial_*_harness.py` avec le préfixe `test_` et `load_tests` pour que 100 % des tests du dossier `tests/` soient exécutés par `python -m unittest discover tests` en CI.
 - **Support Diagnostics HA (`diagnostics.py`)** : Ajout du téléchargement de diagnostic anonymisé (`async_get_config_entry_diagnostics`) pour faciliter le support utilisateur.
 
 ### 🚀 Jalon v0.6 (Moyen Terme) — Ordonnancement du Carrousel & Grilles Custom UI (`6x12`)

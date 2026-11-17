@@ -91,13 +91,7 @@ from custom_components.smart_remote_rebirth.const import (
     DEFAULT_POLLING_INTERVAL,
     SLEEP_CONSECUTIVE_FAILURES_THRESHOLD,
 )
-from custom_components.smart_remote_rebirth.sensor import (
-    SevenhugsBatterySensor,
-    SevenhugsWifiSignalSensor,
-    SevenhugsActiveScreenSensor,
-)
 from custom_components.smart_remote_rebirth.binary_sensor import (
-    SevenhugsChargingBinarySensor,
     SevenhugsConnectivityBinarySensor,
 )
 from custom_components.smart_remote_rebirth.button import (
@@ -391,10 +385,10 @@ class TestSevenhugsDataDelegationEdgeCases(unittest.IsolatedAsyncioTestCase):
         self.assertIs(data.coordinator, mock_coord)
         self.assertIs(data["coordinator"], mock_coord)
 
-        # Tout attribut délégué doit lever AttributeError indiquant SevenhugsData
+        # Tout attribut délégué doit lever AttributeError indiquant SmartRemoteData
         with self.assertRaises(AttributeError) as cm:
             _ = data.host
-        self.assertIn("SevenhugsData", str(cm.exception))
+        self.assertIn("SmartRemoteData", str(cm.exception))
         self.assertIn("host", str(cm.exception))
 
         with self.assertRaises(AttributeError):
@@ -483,15 +477,9 @@ class TestLocalizationValidationAndInterpolation(unittest.TestCase):
         dummy_coordinator.firmware_version = "0.76.4"
         dummy_coordinator.mac_address = None
 
-        # Instanciation de l'ensemble des entités de production
+        # Instanciation de l'ensemble des entités de production (FR-3 : 4 entités actives)
         entities_by_platform: dict[str, list[Any]] = {
-            "sensor": [
-                SevenhugsBatterySensor(dummy_coordinator, dummy_entry),
-                SevenhugsWifiSignalSensor(dummy_coordinator, dummy_entry),
-                SevenhugsActiveScreenSensor(dummy_coordinator, dummy_entry),
-            ],
             "binary_sensor": [
-                SevenhugsChargingBinarySensor(dummy_coordinator, dummy_entry),
                 SevenhugsConnectivityBinarySensor(dummy_coordinator, dummy_entry),
             ],
             "button": [

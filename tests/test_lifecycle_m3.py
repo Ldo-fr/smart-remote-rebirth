@@ -93,8 +93,7 @@ class TestMilestone3LifecycleAndLocalization(unittest.IsolatedAsyncioTestCase):
         """Vérifie la conformité des constantes de polling et de résilience veille."""
         self.assertEqual(DEFAULT_POLLING_INTERVAL, 60)
         self.assertEqual(SLEEP_CONSECUTIVE_FAILURES_THRESHOLD, 3)
-        self.assertEqual(len(PLATFORMS), 3)
-        self.assertIn(Platform.SENSOR, PLATFORMS)
+        self.assertEqual(len(PLATFORMS), 2)
         self.assertIn(Platform.BINARY_SENSOR, PLATFORMS)
         self.assertIn(Platform.BUTTON, PLATFORMS)
 
@@ -148,7 +147,7 @@ class TestMilestone3LifecycleAndLocalization(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(coord, SevenhugsDataUpdateCoordinator)
         self.assertTrue(coord.last_update_success)
         self.assertIsNotNone(coord.data)
-        self.assertEqual(coord.data["battery"], 95)
+        self.assertTrue(coord.data["connected"])
         self.assertEqual(coord.data["serial_number"], "a06fe048b48b260139")
 
         # 3. Vérification forwarding vers PLATFORMS
@@ -279,20 +278,16 @@ class TestMilestone3LifecycleAndLocalization(unittest.IsolatedAsyncioTestCase):
         s_leaves = get_leaf_keys(strings)
         fr_leaves = get_leaf_keys(fr)
 
-        # 3. Parité stricte 1:1 des clés feuilles (40 clés en Phase 3, 42-47 en Phase 4)
+        # 3. Parité stricte 1:1 des clés feuilles
         self.assertEqual(
             set(s_leaves.keys()),
             set(fr_leaves.keys()),
             f"Différence de structure détectée: {set(s_leaves.keys()) ^ set(fr_leaves.keys())}",
         )
-        self.assertIn(len(s_leaves), (40, 42, 43, 47))
+        self.assertIn(len(s_leaves), (36, 38, 39, 43))
 
-        # 4. Présence de l'intégralité des 8 entités créées en Milestone 2
+        # 4. Présence de l'intégralité des 4 entités actives (FR-3)
         expected_entities = [
-            "entity.sensor.battery.name",
-            "entity.sensor.wifi_signal.name",
-            "entity.sensor.active_screen.name",
-            "entity.binary_sensor.charging.name",
             "entity.binary_sensor.connectivity.name",
             "entity.button.force_sync.name",
             "entity.button.ping.name",
@@ -303,20 +298,12 @@ class TestMilestone3LifecycleAndLocalization(unittest.IsolatedAsyncioTestCase):
             self.assertIn(key, fr_leaves)
 
         # 5. Cohérence des valeurs anglaises
-        self.assertEqual(s_leaves["entity.sensor.battery.name"], "Battery")
-        self.assertEqual(s_leaves["entity.sensor.wifi_signal.name"], "Wi-Fi signal")
-        self.assertEqual(s_leaves["entity.sensor.active_screen.name"], "Active screen")
-        self.assertEqual(s_leaves["entity.binary_sensor.charging.name"], "Charging")
         self.assertEqual(s_leaves["entity.binary_sensor.connectivity.name"], "Connectivity")
         self.assertEqual(s_leaves["entity.button.force_sync.name"], "Force sync")
         self.assertEqual(s_leaves["entity.button.ping.name"], "Ping")
         self.assertEqual(s_leaves["entity.button.backup_config.name"], "Backup configuration")
 
         # 6. Cohérence des valeurs françaises
-        self.assertEqual(fr_leaves["entity.sensor.battery.name"], "Batterie")
-        self.assertEqual(fr_leaves["entity.sensor.wifi_signal.name"], "Signal Wi-Fi")
-        self.assertEqual(fr_leaves["entity.sensor.active_screen.name"], "Écran actif")
-        self.assertEqual(fr_leaves["entity.binary_sensor.charging.name"], "En charge")
         self.assertEqual(fr_leaves["entity.binary_sensor.connectivity.name"], "Connectivité")
         self.assertEqual(fr_leaves["entity.button.force_sync.name"], "Forcer la synchronisation")
         self.assertEqual(fr_leaves["entity.button.ping.name"], "Ping")

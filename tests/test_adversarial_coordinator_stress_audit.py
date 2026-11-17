@@ -288,5 +288,17 @@ async def run_all_stress_audits() -> None:
     print("=" * 80)
 
 
+def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
+    """Protocole de découverte unittest."""
+    import unittest
+
+    def _run() -> None:
+        asyncio.run(run_all_stress_audits())
+
+    suite = unittest.TestSuite()
+    suite.addTest(unittest.FunctionTestCase(_run, description="test_adversarial_coordinator_stress_audit"))
+    return suite
+
+
 if __name__ == "__main__":
     asyncio.run(run_all_stress_audits())

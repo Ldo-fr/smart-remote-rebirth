@@ -36,7 +36,15 @@ except ImportError:
     def async_create_clientsession(*args: Any, **kwargs: Any) -> Any:
         return aiohttp.ClientSession()
 
-from .client import AsyncSmartRemoteClient, SevenhugsAuthError, SevenhugsConnectionError
+from .client import (
+    AsyncSmartRemoteClient,
+    SevenhugsAuthError,
+    SevenhugsConnectionError,
+    SevenhugsError,
+    SmartRemoteAuthError,
+    SmartRemoteConnectionError,
+    SmartRemoteError,
+)
 from .const import (
     CONF_AUTO_SYNC_WEBHOOKS,
     CONF_DELETE_DEVICES,
@@ -48,8 +56,12 @@ from .const import (
     DOMAIN,
     PLATFORMS,
 )
-from .coordinator import SevenhugsDataUpdateCoordinator
-from .lua_injector import SevenhugsLuaInjector
+from .coordinator import (
+    SevenhugsDataUpdateCoordinator,
+    SmartRemoteCoordinator,
+    SmartRemoteDataUpdateCoordinator,
+)
+from .lua_injector import SevenhugsLuaInjector, SmartRemoteLuaInjector
 from .webhook import async_register_webhook, async_unregister_webhook
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,7 +74,15 @@ __all__ = [
     "SevenhugsConnectionError",
     "SevenhugsData",
     "SevenhugsDataUpdateCoordinator",
+    "SevenhugsError",
     "SevenhugsLuaInjector",
+    "SmartRemoteAuthError",
+    "SmartRemoteConnectionError",
+    "SmartRemoteCoordinator",
+    "SmartRemoteData",
+    "SmartRemoteDataUpdateCoordinator",
+    "SmartRemoteError",
+    "SmartRemoteLuaInjector",
     "async_setup",
     "async_setup_entry",
     "async_unload_entry",
@@ -70,7 +90,7 @@ __all__ = [
 ]
 
 
-class SevenhugsData(dict):
+class SmartRemoteData(dict):
     """Conteneur des données d'exécution de la télécommande.
 
     Garantit la compatibilité ascendante et descendante totale (Phases 1, 2, 3 et 4) :
@@ -126,13 +146,17 @@ class SevenhugsData(dict):
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
 
+# Alias rétro-compatible
+SevenhugsData = SmartRemoteData
+
+
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
-    """Initialise le composant Sevenhugs Smart Remote (mode déclaratif YAML non supporté, UI uniquement)."""
+    """Initialise le composant Smart Remote Rebirth (mode déclaratif YAML non supporté, UI uniquement)."""
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Initialise l'intégration Sevenhugs Smart Remote à partir d'une ConfigEntry."""
+    """Initialise l'intégration Smart Remote Rebirth à partir d'une ConfigEntry."""
     host = entry.data[CONF_HOST]
     port = entry.data.get(CONF_PORT, DEFAULT_PORT)
     target_host = f"{host}:{port}" if port and port != 80 else host
@@ -151,14 +175,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     # Coordinateur de données (Requirement R1 & R4)
-    coordinator = SevenhugsDataUpdateCoordinator(hass, client, entry)
+    coordinator = SmartRemoteDataUpdateCoordinator(hass, client, entry)
 
     # Injecteur Server-Driven UI Lua (Phase 4 / Requirement R2)
-    injector = SevenhugsLuaInjector(hass, entry, client)
+    injector = SmartRemoteLuaInjector(hass, entry, client)
 
     # Double stockage préalable : hass.data (requis par R1) et entry.runtime_data (HA 2024+)
     # Permet à async_unload_entry de nettoyer proprement les ressources si first_refresh échoue
-    runtime_data = SevenhugsData(
+    runtime_data = SmartRemoteData(
         client=client,
         session=session,
         coordinator=coordinator,
@@ -231,9 +255,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 auto_sync,
             )
             if hasattr(hass, "async_create_task"):
-                hass.async_create_task(injector.async_sync_entities())
+                sync_task = hass.async_create_task(injector.async_sync_entities())
             else:
-                asyncio.create_task(injector.async_sync_entities())
+                sync_task = asyncio.create_task(injector.async_sync_entities())
+            runtime_data["_sync_task"] = sync_task
 
     except Exception:
         await async_unload_entry(hass, entry)
@@ -261,9 +286,23 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         data = getattr(entry, "runtime_data", None)
 
     if data:
+        sync_task = data.get("_sync_task") if isinstance(data, dict) else getattr(data, "_sync_task", None)
+        if sync_task is not None and hasattr(sync_task, "done") and not sync_task.done():
+            sync_task.cancel()
+            try:
+                await sync_task
+            except (asyncio.CancelledError, Exception):
+                pass
+
         client = getattr(data, "client", data.get("client") if isinstance(data, dict) else data)
         if client and hasattr(client, "close"):
             await client.close()
+
+        session = getattr(data, "session", data.get("session") if isinstance(data, dict) else None)
+        if session and hasattr(session, "close"):
+            close_res = session.close()
+            if asyncio.iscoroutine(close_res):
+                await close_res
 
     # 4. Réinitialisation explicite de runtime_data
     if hasattr(entry, "runtime_data"):

@@ -87,18 +87,16 @@ ERROR_PAIRING_FAILED = "pairing_failed"
 ERROR_ALREADY_CONFIGURED = "already_configured"
 ERROR_UNKNOWN = "unknown"
 
-# Plateformes supportées (Milestone 3 / Requirement R4)
+# Plateformes supportées (FR-3 : binary_sensor et button uniquement)
 try:
     from homeassistant.const import Platform
 
     PLATFORMS: list[Platform] = [
-        Platform.SENSOR,
         Platform.BINARY_SENSOR,
         Platform.BUTTON,
     ]
 except ImportError:
     PLATFORMS: list[str] = [  # type: ignore[no-redef]
-        "sensor",
         "binary_sensor",
         "button",
     ]
