@@ -72,12 +72,22 @@ from .crypto import (
 _LOGGER = logging.getLogger(__name__)
 
 
-class SevenhugsAuthError(Exception):
+class SmartRemoteError(Exception):
+    """Exception de base pour l'intégration Smart Remote Rebirth."""
+
+
+class SmartRemoteAuthError(SmartRemoteError):
     """Exception levée en cas d'échec d'authentification ou de rejet de handshake."""
 
 
-class SevenhugsConnectionError(Exception):
+class SmartRemoteConnectionError(SmartRemoteError):
     """Exception levée en cas de défaillance réseau ou de rupture de communication."""
+
+
+# Alias rétro-compatibles
+SevenhugsError = SmartRemoteError
+SevenhugsAuthError = SmartRemoteAuthError
+SevenhugsConnectionError = SmartRemoteConnectionError
 
 
 class AsyncSmartRemoteClient:

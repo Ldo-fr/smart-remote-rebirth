@@ -159,83 +159,29 @@ async def test_section_1_polling_cadence() -> None:
 
 
 async def test_section_2_telemetry_normalization_and_cache() -> None:
-    """2. Vérifie la normalisation des données, le clamping et la protection du cache."""
+    """2. Vérifie la normalisation des données et la protection du cache."""
     print("--- SECTION 2: Telemetry Normalization & Cache Protection ---")
     hass = HomeAssistant()
     entry = make_test_entry()
     client = MockClientHarness()
     coord = SevenhugsDataUpdateCoordinator(hass, client, entry)
 
-    # 2.1 Clamping de la batterie (négatif -> 0, >100 -> 100, str -> int, None -> cache)
     client.response_data = {
-        "battery": -15,
-        "rssi": -75,
-        "charging": True,
-        "active_screen": "Media",
+        "serial_number": "SR1A_NORM_1",
+        "mac_address": "11:22:33:44:55:66",
+        "firmware_version": "v0.76.4",
     }
     await coord.async_refresh()
-    assert coord.battery == 0, f"Attendu 0 pour -15, obtenu {coord.battery}"
-    assert coord.wifi_signal == -75
-    assert coord.charging is True
-    assert coord.active_screen == "Media"
+    assert coord.serial_number == "SR1A_NORM_1"
+    assert coord.mac_address == "11:22:33:44:55:66"
+    assert coord.firmware_version == "v0.76.4"
 
-    client.response_data["battery"] = 145
-    await coord.async_refresh()
-    assert coord.battery == 100, f"Attendu 100 pour 145, obtenu {coord.battery}"
-
-    client.response_data["battery"] = "72"
-    await coord.async_refresh()
-    assert coord.battery == 72, f"Attendu 72 pour '72', obtenu {coord.battery}"
-
-    client.response_data["battery"] = "corrupted_text"
-    await coord.async_refresh()
-    assert coord.battery == 72, f"Attendu conservation 72 en cas de corrupt, obtenu {coord.battery}"
-
-    # 2.2 Extraction du signal Wi-Fi (wifi_signal prioritaire sur rssi, conversion str)
-    client.response_data = {
-        "battery": 80,
-        "wifi_signal": "-58",
-        "rssi": -85,
-    }
-    await coord.async_refresh()
-    assert coord.wifi_signal == -58, f"Attendu -58, obtenu {coord.wifi_signal}"
-
-    client.response_data = {"battery": 80, "rssi": -82}
-    await coord.async_refresh()
-    assert coord.wifi_signal == -82, f"Attendu -82 via rssi, obtenu {coord.wifi_signal}"
-
-    client.response_data = {"battery": 80, "wifi_signal": "unreadable"}
-    await coord.async_refresh()
-    assert coord.wifi_signal is None, f"Attendu None pour rssi invalide, obtenu {coord.wifi_signal}"
-
-    # 2.3 États de dock / charging croisés
-    client.response_data = {"battery": 80, "docked": True, "charging": False}
-    await coord.async_refresh()
-    assert coord.charging is True
-    assert coord.data["docked"] is True
-
-    client.response_data = {"battery": 80, "docked": False, "charging": True}
-    await coord.async_refresh()
-    assert coord.charging is True
-    assert coord.data["charging"] is True
-    assert coord.data["docked"] is False
-
-    client.response_data = {"battery": 80, "docked": False, "charging": False}
-    await coord.async_refresh()
-    assert coord.charging is False
-    assert coord.data["docked"] is False
-
-    # 2.4 Active Screen (active_screen -> current_screen -> cache -> Home)
-    client.response_data = {"battery": 80, "current_screen": "HueLights"}
-    await coord.async_refresh()
-    assert coord.active_screen == "HueLights"
-
-    # 2.5 Immutabilité du cache retourné (cached_data shallow copy)
+    # Immutabilité du cache retourné (cached_data shallow copy)
     cache_copy = coord.cached_data
-    cache_copy["battery"] = 999
-    assert coord.cached_data["battery"] == 80, "La mutation du dictionnaire retourné a altéré le cache interne!"
+    cache_copy["serial_number"] = "MUTATED"
+    assert coord.cached_data["serial_number"] == "SR1A_NORM_1", "La mutation du dictionnaire retourné a altéré le cache interne!"
 
-    print("  [PASS] Telemetry parsing, boundary clamping & cache immutability validated")
+    print("  [PASS] Telemetry parsing & cache immutability validated")
 
 
 async def test_section_3_sleep_resilience_exact_3_failures() -> None:
@@ -244,14 +190,11 @@ async def test_section_3_sleep_resilience_exact_3_failures() -> None:
     hass = HomeAssistant()
     entry = make_test_entry()
     client = MockClientHarness({
-        "battery": 88,
-        "wifi_signal": -64,
-        "charging": False,
-        "active_screen": "TV",
         "serial_number": "SR1A12345678",
+        "firmware_version": "v0.76.4",
     })
     coord = SevenhugsDataUpdateCoordinator(hass, client, entry)
-    entity = SevenhugsBaseEntity(coord, entry, "battery")
+    entity = SevenhugsBaseEntity(coord, entry, "connectivity")
 
     # Initialisation nominale
     await coord.async_refresh()
@@ -259,7 +202,7 @@ async def test_section_3_sleep_resilience_exact_3_failures() -> None:
     assert coord.consecutive_failures == 0
     assert entity.available is True
     assert coord.is_connected is True
-    assert coord.battery == 88
+    assert coord.serial_number == "SR1A12345678"
 
     # Échec 1 : Veille matérielle (SevenhugsConnectionError)
     client.exception_to_raise = SevenhugsConnectionError("Connection timed out (Deep Sleep)")
@@ -269,7 +212,7 @@ async def test_section_3_sleep_resilience_exact_3_failures() -> None:
     assert coord.last_exception is None, "last_exception doit être None à l'échec 1"
     assert entity.available is True, "entity.available doit rester True à l'échec 1"
     assert coord.is_connected is True
-    assert coord.battery == 88, "Les données en cache doivent être renvoyées"
+    assert coord.serial_number == "SR1A12345678", "Les données en cache doivent être renvoyées"
 
     # Échec 2 : Veille continue (TimeoutError)
     client.exception_to_raise = TimeoutError("Socket keep-alive timeout")
@@ -279,7 +222,7 @@ async def test_section_3_sleep_resilience_exact_3_failures() -> None:
     assert coord.last_exception is None
     assert entity.available is True
     assert coord.is_connected is True
-    assert coord.battery == 88
+    assert coord.serial_number == "SR1A12345678"
 
     # Échec 3 : Seuil de 3 échecs atteint -> bascule en indisponible
     client.exception_to_raise = ConnectionResetError("Connection reset by peer")
@@ -290,8 +233,8 @@ async def test_section_3_sleep_resilience_exact_3_failures() -> None:
     assert entity.available is False, "entity.available doit basculer à False après 3 échecs"
     assert coord.is_connected is False, "is_connected doit être False"
     # Le cache mémoire doit être rigoureusement conservé
-    assert coord.cached_data["battery"] == 88, "Le cache a été vidé à l'échec 3!"
-    assert coord.battery == 88, "coordinator.battery doit continuer d'exposer la valeur en cache"
+    assert coord.cached_data["serial_number"] == "SR1A12345678", "Le cache a été vidé à l'échec 3!"
+    assert coord.serial_number == "SR1A12345678", "coordinator.serial_number doit continuer d'exposer la valeur en cache"
 
     # Échecs prolongés 4 et 5 : maintien de l'état indisponible et du cache
     client.exception_to_raise = OSError(113, "No route to host")
@@ -299,14 +242,14 @@ async def test_section_3_sleep_resilience_exact_3_failures() -> None:
     assert coord.consecutive_failures == 4
     assert coord.last_update_success is False
     assert entity.available is False
-    assert coord.cached_data["battery"] == 88
+    assert coord.cached_data["serial_number"] == "SR1A12345678"
 
     client.exception_to_raise = asyncio.TimeoutError()
     await coord.async_refresh()
     assert coord.consecutive_failures == 5
     assert coord.last_update_success is False
     assert entity.available is False
-    assert coord.cached_data["battery"] == 88
+    assert coord.cached_data["serial_number"] == "SR1A12345678"
 
     print("  [PASS] Exact 3-consecutive-failure sleep resilience and cache survival verified")
 
@@ -316,9 +259,9 @@ async def test_section_4_recovery_and_flapping_resilience() -> None:
     print("--- SECTION 4: Recovery & Intermittent Network Resilience ---")
     hass = HomeAssistant()
     entry = make_test_entry()
-    client = MockClientHarness({"battery": 80})
+    client = MockClientHarness({"serial_number": "SR1A12345678"})
     coord = SevenhugsDataUpdateCoordinator(hass, client, entry)
-    entity = SevenhugsBaseEntity(coord, entry, "battery")
+    entity = SevenhugsBaseEntity(coord, entry, "connectivity")
 
     listener_called = 0
     def on_update():
@@ -338,7 +281,7 @@ async def test_section_4_recovery_and_flapping_resilience() -> None:
 
     # Tentative 4 : Rétablissement réussi avec télémétrie fraîche
     client.exception_to_raise = None
-    client.response_data = {"battery": 79, "wifi_signal": -60}
+    client.response_data = {"serial_number": "SR1A12345678", "firmware_version": "v0.76.5"}
     prev_listener_count = listener_called
     await coord.async_refresh()
 
@@ -346,7 +289,7 @@ async def test_section_4_recovery_and_flapping_resilience() -> None:
     assert coord.last_update_success is True
     assert coord.last_exception is None
     assert entity.available is True
-    assert coord.battery == 79
+    assert coord.firmware_version == "v0.76.5"
     assert listener_called > prev_listener_count, "L'écouteur d'entité n'a pas été notifié lors du réveil"
 
     # Simulation de battement intermittent : 1 échec -> rétablissement -> 2 échecs -> rétablissement -> 3 échecs
@@ -409,11 +352,11 @@ async def test_section_5_event_wake_up() -> None:
 
     # Réveil événementiel via mDNS
     client.exception_to_raise = None
-    client.response_data = {"battery": 90}
+    client.response_data = {"serial_number": "SR1A12345678", "firmware_version": "v0.76.5"}
     await coord.async_wake_up(reason="zeroconf_mdns_advertisement")
     assert coord.consecutive_failures == 0
     assert coord.last_update_success is True
-    assert coord.battery == 90
+    assert coord.firmware_version == "v0.76.5"
     assert entity.available is True
 
     # 5.2 Réveil après mise en indisponibilité complète (3 échecs)
@@ -425,11 +368,11 @@ async def test_section_5_event_wake_up() -> None:
 
     # Réveil événementiel via webhook ou bouton physique
     client.exception_to_raise = None
-    client.response_data = {"battery": 89}
+    client.response_data = {"serial_number": "SR1A12345678", "firmware_version": "v0.76.6"}
     await coord.async_handle_wake_up(reason="button_press")
     assert coord.consecutive_failures == 0
     assert coord.last_update_success is True
-    assert coord.battery == 89
+    assert coord.firmware_version == "v0.76.6"
     assert entity.available is True
 
     # 5.3 Réveil lors d'un blackout continu (réveil intempestif alors que la télécommande reste éteinte)
@@ -438,7 +381,7 @@ async def test_section_5_event_wake_up() -> None:
     # Remise à 0 avant requête, échec à la requête -> passe à 1 échec (< 3) -> utilise le cache
     assert coord.consecutive_failures == 1
     assert coord.last_update_success is True
-    assert coord.battery == 89
+    assert coord.firmware_version == "v0.76.6"
     assert entity.available is True
 
     print("  [PASS] Event wake-up mechanics during sleep, post-failure & spurious wake-up verified")
@@ -539,7 +482,7 @@ async def test_section_8_polymorphic_network_exceptions() -> None:
         assert coord.last_update_success is True, (
             f"L'échec 1 pour {type(exc).__name__} aurait dû retourner le cache!"
         )
-        assert coord.battery == 82
+        assert coord.is_connected is True
 
     # Vérification d'une exception imprévue (ex: TypeError, RuntimeError) -> UpdateFailed immédiat
     client = MockClientHarness({"battery": 82})
@@ -585,7 +528,6 @@ async def test_section_9_live_encrypted_integration() -> None:
         # 9.1 Premier rafraîchissement chiffré live
         await coord.async_refresh()
         assert coord.last_update_success is True
-        assert coord.battery == 95, f"Attendu 95, obtenu {coord.battery}"
         assert coord.serial_number == "a06fe048b48b260139"
         assert coord.firmware_version == "v0.76.4"
         assert entity.available is True
@@ -605,14 +547,14 @@ async def test_section_9_live_encrypted_integration() -> None:
         await coord.async_refresh()
         assert coord.consecutive_failures == 1
         assert coord.last_update_success is True
-        assert coord.battery == 95
+        assert coord.serial_number == "a06fe048b48b260139"
         assert entity.available is True
 
         # Échec 2 (socket fermée)
         await coord.async_refresh()
         assert coord.consecutive_failures == 2
         assert coord.last_update_success is True
-        assert coord.battery == 95
+        assert coord.serial_number == "a06fe048b48b260139"
         assert entity.available is True
 
         # Échec 3 (seuil d'indisponibilité)
@@ -620,7 +562,7 @@ async def test_section_9_live_encrypted_integration() -> None:
         assert coord.consecutive_failures == 3
         assert coord.last_update_success is False
         assert entity.available is False
-        assert coord.cached_data["battery"] == 95
+        assert coord.cached_data["serial_number"] == "a06fe048b48b260139"
 
     finally:
         await client.close()
@@ -714,6 +656,18 @@ async def run_all_adversarial_tests() -> None:
     print(f"ALL 10 EMPIRICAL ADVERSARIAL CHALLENGES COMPLETED IN {duration:.3f}s")
     print("VERDICT: 100% SUCCESS — ZERO REGRESSION — FULL CONFORMANCE")
     print("================================================================================")
+
+
+def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
+    """Protocole de découverte unittest."""
+    import unittest
+
+    def _run() -> None:
+        asyncio.run(run_all_adversarial_tests())
+
+    suite = unittest.TestSuite()
+    suite.addTest(unittest.FunctionTestCase(_run, description="test_adversarial_coordinator_harness"))
+    return suite
 
 
 if __name__ == "__main__":

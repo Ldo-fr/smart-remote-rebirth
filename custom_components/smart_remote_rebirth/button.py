@@ -19,10 +19,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .client import SevenhugsAuthError, SevenhugsConnectionError
+from .client import SmartRemoteAuthError, SmartRemoteConnectionError
 from .const import DOMAIN
-from .coordinator import SevenhugsDataUpdateCoordinator
-from .entity import SevenhugsBaseEntity
+from .coordinator import SmartRemoteDataUpdateCoordinator
+from .entity import SmartRemoteBaseEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ PARALLEL_UPDATES = 0
 
 # Erreurs réseau et système interceptées lors des actions de boutons
 _COMMUNICATION_ERRORS = (
-    SevenhugsConnectionError,
+    SmartRemoteConnectionError,
     TimeoutError,
     asyncio.TimeoutError,
     ConnectionError,
@@ -42,12 +42,12 @@ _COMMUNICATION_ERRORS = (
 def _resolve_coordinator(
     hass: HomeAssistant,
     entry: ConfigEntry,
-) -> SevenhugsDataUpdateCoordinator | None:
+) -> SmartRemoteDataUpdateCoordinator | None:
     """Extrait de manière sécurisée l'instance du coordinateur."""
     # 1. Vérification dans entry.runtime_data (HA 2024+)
     runtime_data = getattr(entry, "runtime_data", None)
     if runtime_data is not None:
-        if isinstance(runtime_data, SevenhugsDataUpdateCoordinator):
+        if isinstance(runtime_data, SmartRemoteDataUpdateCoordinator):
             return runtime_data
         coord = getattr(runtime_data, "coordinator", None)
         if coord is not None:
@@ -59,7 +59,7 @@ def _resolve_coordinator(
     domain_data = getattr(hass, "data", {}).get(DOMAIN, {}) if hasattr(hass, "data") and isinstance(hass.data, dict) else {}
     if isinstance(domain_data, dict) and entry.entry_id in domain_data:
         stored_data = domain_data[entry.entry_id]
-        if isinstance(stored_data, SevenhugsDataUpdateCoordinator):
+        if isinstance(stored_data, SmartRemoteDataUpdateCoordinator):
             return stored_data
         coord = getattr(stored_data, "coordinator", None)
         if coord is not None:
@@ -80,25 +80,25 @@ async def async_setup_entry(
     Récupère le coordinateur via double stockage (entry.runtime_data ou hass.data)
     et enregistre l'ensemble des boutons de diagnostic.
     """
-    coordinator: SevenhugsDataUpdateCoordinator | None = _resolve_coordinator(hass, entry)
+    coordinator: SmartRemoteDataUpdateCoordinator | None = _resolve_coordinator(hass, entry)
 
     if coordinator is None:
         _LOGGER.error(
-            "Impossible d'initialiser la plateforme button pour %s : coordinateur Sevenhugs introuvable",
+            "Impossible d'initialiser la plateforme button pour %s : coordinateur Smart Remote introuvable",
             entry.title or entry.entry_id,
         )
         return
 
     entities: list[ButtonEntity] = [
-        SevenhugsForceSyncButton(coordinator, entry),
-        SevenhugsPingButton(coordinator, entry),
-        SevenhugsBackupConfigButton(coordinator, entry),
+        SmartRemoteForceSyncButton(coordinator, entry),
+        SmartRemotePingButton(coordinator, entry),
+        SmartRemoteBackupConfigButton(coordinator, entry),
     ]
 
     async_add_entities(entities)
 
 
-class SevenhugsForceSyncButton(SevenhugsBaseEntity, ButtonEntity):
+class SmartRemoteForceSyncButton(SmartRemoteBaseEntity, ButtonEntity):
     """Bouton pour forcer la synchronisation immédiate de la télémétrie."""
 
     _attr_entity_category: EntityCategory = EntityCategory.DIAGNOSTIC
@@ -106,7 +106,7 @@ class SevenhugsForceSyncButton(SevenhugsBaseEntity, ButtonEntity):
 
     def __init__(
         self,
-        coordinator: SevenhugsDataUpdateCoordinator,
+        coordinator: SmartRemoteDataUpdateCoordinator,
         entry: ConfigEntry,
     ) -> None:
         """Initialise le bouton de synchronisation forcée."""
@@ -124,11 +124,11 @@ class SevenhugsForceSyncButton(SevenhugsBaseEntity, ButtonEntity):
                 err,
             )
             raise HomeAssistantError(
-                f"Échec de la synchronisation forcée Sevenhugs : {err}"
+                f"Échec de la synchronisation forcée Smart Remote : {err}"
             ) from err
 
 
-class SevenhugsPingButton(SevenhugsBaseEntity, ButtonEntity):
+class SmartRemotePingButton(SmartRemoteBaseEntity, ButtonEntity):
     """Bouton pour tester la connectivité réseau et réveiller la télécommande."""
 
     _attr_entity_category: EntityCategory = EntityCategory.DIAGNOSTIC
@@ -136,7 +136,7 @@ class SevenhugsPingButton(SevenhugsBaseEntity, ButtonEntity):
 
     def __init__(
         self,
-        coordinator: SevenhugsDataUpdateCoordinator,
+        coordinator: SmartRemoteDataUpdateCoordinator,
         entry: ConfigEntry,
     ) -> None:
         """Initialise le bouton ping / reconnexion."""
@@ -151,24 +151,24 @@ class SevenhugsPingButton(SevenhugsBaseEntity, ButtonEntity):
             # 2. Rafraîchissement des données de télémétrie
             await self.coordinator.async_request_refresh()
             _LOGGER.debug("Ping et rafraîchissement réussis pour %s", self.entry.title)
-        except SevenhugsAuthError as err:
+        except SmartRemoteAuthError as err:
             _LOGGER.error("Session non authentifiée lors du ping sur %s : %s", self.entry.title, err)
             raise HomeAssistantError(
-                f"Échec d'authentification lors du ping Sevenhugs : {err}"
+                f"Échec d'authentification lors du ping Smart Remote : {err}"
             ) from err
         except _COMMUNICATION_ERRORS as err:
             _LOGGER.warning("Télécommande inaccessible lors du ping (%s) : %s", self.entry.title, err)
             raise HomeAssistantError(
-                f"Impossible de joindre la télécommande Sevenhugs lors du ping : {err}"
+                f"Impossible de joindre la télécommande Smart Remote lors du ping : {err}"
             ) from err
         except Exception as err:
             _LOGGER.error("Erreur inattendue lors du ping de %s : %s", self.entry.title, err, exc_info=True)
             raise HomeAssistantError(
-                f"Erreur inattendue lors du ping Sevenhugs : {err}"
+                f"Erreur inattendue lors du ping Smart Remote : {err}"
             ) from err
 
 
-class SevenhugsBackupConfigButton(SevenhugsBaseEntity, ButtonEntity):
+class SmartRemoteBackupConfigButton(SmartRemoteBaseEntity, ButtonEntity):
     """Bouton pour sauvegarder et inspecter la configuration de la télécommande."""
 
     _attr_entity_category: EntityCategory = EntityCategory.DIAGNOSTIC
@@ -176,7 +176,7 @@ class SevenhugsBackupConfigButton(SevenhugsBaseEntity, ButtonEntity):
 
     def __init__(
         self,
-        coordinator: SevenhugsDataUpdateCoordinator,
+        coordinator: SmartRemoteDataUpdateCoordinator,
         entry: ConfigEntry,
     ) -> None:
         """Initialise le bouton de sauvegarde de configuration."""
@@ -199,22 +199,28 @@ class SevenhugsBackupConfigButton(SevenhugsBaseEntity, ButtonEntity):
             config_data = await self.client.async_request("GET", "/api/config")
             self._last_backup = config_data if isinstance(config_data, dict) else {}
             _LOGGER.info(
-                "Sauvegarde de configuration Sevenhugs réussie pour %s (%d sections)",
+                "Sauvegarde de configuration Smart Remote réussie pour %s (%d sections)",
                 self.entry.title,
                 len(self._last_backup),
             )
-        except SevenhugsAuthError as err:
+        except SmartRemoteAuthError as err:
             _LOGGER.error("Session non authentifiée lors du backup sur %s : %s", self.entry.title, err)
             raise HomeAssistantError(
-                f"Échec d'authentification lors de la sauvegarde Sevenhugs : {err}"
+                f"Échec d'authentification lors de la sauvegarde Smart Remote : {err}"
             ) from err
         except _COMMUNICATION_ERRORS as err:
             _LOGGER.warning("Télécommande inaccessible lors du backup (%s) : %s", self.entry.title, err)
             raise HomeAssistantError(
-                f"Impossible de joindre la télécommande Sevenhugs pour sauvegarder la configuration : {err}"
+                f"Impossible de joindre la télécommande Smart Remote pour sauvegarder la configuration : {err}"
             ) from err
         except Exception as err:
             _LOGGER.error("Erreur inattendue lors de la sauvegarde de %s : %s", self.entry.title, err, exc_info=True)
             raise HomeAssistantError(
-                f"Erreur inattendue lors de la sauvegarde Sevenhugs : {err}"
+                f"Erreur inattendue lors de la sauvegarde Smart Remote : {err}"
             ) from err
+
+
+# Alias rétro-compatibles
+SevenhugsForceSyncButton = SmartRemoteForceSyncButton
+SevenhugsPingButton = SmartRemotePingButton
+SevenhugsBackupConfigButton = SmartRemoteBackupConfigButton

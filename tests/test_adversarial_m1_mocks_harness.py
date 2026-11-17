@@ -770,6 +770,19 @@ async def main() -> int:
         return 1
 
 
+def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
+    """Protocole de découverte unittest."""
+    import unittest
+
+    def _run() -> None:
+        code = asyncio.run(main())
+        assert code == 0, f"Adversarial M1 mocks harness failed: {FAILURES}"
+
+    suite = unittest.TestSuite()
+    suite.addTest(unittest.FunctionTestCase(_run, description="test_adversarial_m1_mocks_harness"))
+    return suite
+
+
 if __name__ == "__main__":
     code = asyncio.run(main())
     sys.exit(code)

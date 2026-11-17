@@ -132,7 +132,7 @@ async def test_axis1_rapid_setup_unload_50_cycles() -> dict[str, Any]:
             coord = entry.runtime_data.coordinator
             assert coord is not None, f"Cycle {i}: coordinator est None"
             assert coord.data is not None, f"Cycle {i}: coordinator.data est None après first_refresh"
-            assert coord.data["battery"] == 95, f"Cycle {i}: batterie incohérente ({coord.data.get('battery')})"
+            assert coord.data["connected"] is True, f"Cycle {i}: connected incohérent ({coord.data.get('connected')})"
 
             # 2. Vérification plateformes forwardées
             assert entry.entry_id in hass.config_entries.forwarded_platforms
@@ -514,6 +514,26 @@ async def run_all_harness_tests() -> dict[str, Any]:
         print(f"  - {k}: {v}")
     print("=" * 80)
     return results
+
+
+def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
+    """Protocole de découverte unittest."""
+    import unittest
+
+    def _run() -> None:
+        res = asyncio.run(run_all_harness_tests())
+        for k, v in res.items():
+            if isinstance(v, dict):
+                assert v.get("status") != "FAIL", f"Axis {k} failed: {v}"
+                for sub_k, sub_v in v.items():
+                    if isinstance(sub_v, dict):
+                        assert sub_v.get("status") != "FAIL", f"Sub-axis {k}.{sub_k} failed: {sub_v}"
+            elif k == "fatal_error":
+                raise AssertionError(f"Fatal error in M3 harness: {v}")
+
+    suite = unittest.TestSuite()
+    suite.addTest(unittest.FunctionTestCase(_run, description="test_adversarial_m3_lifecycle_harness"))
+    return suite
 
 
 if __name__ == "__main__":

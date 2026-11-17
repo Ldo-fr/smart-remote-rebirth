@@ -734,6 +734,19 @@ async def run_all_adversarial_tests() -> dict[str, Any]:
     return results
 
 
+def load_tests(loader: Any, standard_tests: Any, pattern: Any) -> Any:
+    """Protocole de découverte unittest."""
+    import unittest
+
+    def _run() -> None:
+        res = asyncio.run(run_all_adversarial_tests())
+        assert "fatal_error" not in res, f"Adversarial M2 lifecycle harness failed: {res.get('fatal_error')}"
+
+    suite = unittest.TestSuite()
+    suite.addTest(unittest.FunctionTestCase(_run, description="test_adversarial_m2_lifecycle_harness"))
+    return suite
+
+
 if __name__ == "__main__":
     res = asyncio.run(run_all_adversarial_tests())
     if "fatal_error" in res:

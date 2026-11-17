@@ -18,8 +18,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .client import (
     AsyncSmartRemoteClient,
-    SevenhugsAuthError,
-    SevenhugsConnectionError,
+    SmartRemoteAuthError,
+    SmartRemoteConnectionError,
 )
 from .const import (
     CONF_POLLING_INTERVAL,
@@ -39,7 +39,7 @@ SLEEP_CONSECUTIVE_FAILURES_THRESHOLD = 3
 try:
     import aiohttp
     _NETWORK_ERRORS: tuple[type[Exception], ...] = (
-        SevenhugsConnectionError,
+        SmartRemoteConnectionError,
         TimeoutError,
         asyncio.TimeoutError,
         ConnectionError,
@@ -48,7 +48,7 @@ try:
     )
 except ImportError:
     _NETWORK_ERRORS = (
-        SevenhugsConnectionError,
+        SmartRemoteConnectionError,
         TimeoutError,
         asyncio.TimeoutError,
         ConnectionError,
@@ -56,7 +56,7 @@ except ImportError:
     )
 
 
-class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class SmartRemoteDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinateur de mise à jour des données pour Sevenhugs Smart Remote."""
 
     def __init__(
@@ -111,7 +111,7 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             remotes = raw_data.get("remotes")
             first_remote = remotes[0] if isinstance(remotes, list) and remotes else {}
 
-            _LOGGER.debug("Télémétrie Sevenhugs /api/settings reçue pour %s: %s", self.name, raw_data)
+            _LOGGER.debug("Télémétrie Smart Remote /api/settings reçue pour %s: %s", self.name, raw_data)
 
             mac_addr = (
                 raw_data.get("mac_address")
@@ -124,127 +124,7 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 or self.entry.data.get("firmware_version", "v0.76.4")
             )
 
-            # Recherche multi-sources de la batterie (raw_data, remotes[0], power, status...)
-            raw_battery = None
-            for src in (raw_data, first_remote):
-                if isinstance(src, dict):
-                    for k in (
-                        "battery",
-                        "battery_level",
-                        "batteryLevel",
-                        "battery_percent",
-                        "battery_percentage",
-                        "batteryPercentage",
-                        "level",
-                    ):
-                        if k in src and src[k] is not None:
-                            raw_battery = src[k]
-                            break
-                    if raw_battery is not None:
-                        break
-                    for sub in ("power", "status", "battery_info", "batteryInfo", "device", "state"):
-                        sub_dict = src.get(sub)
-                        if isinstance(sub_dict, dict):
-                            for k in ("battery", "level", "battery_level", "percent", "percentage"):
-                                if k in sub_dict and sub_dict[k] is not None:
-                                    raw_battery = sub_dict[k]
-                                    break
-                        if raw_battery is not None:
-                            break
-                if raw_battery is not None:
-                    break
-
-            if raw_battery is not None:
-                try:
-                    battery = max(0, min(100, int(raw_battery)))
-                except (TypeError, ValueError):
-                    battery = self._cached_data.get("battery")
-            else:
-                battery = self._cached_data.get("battery")
-
-            # Recherche multi-sources du Wi-Fi / RSSI
-            raw_wifi = None
-            for src in (raw_data, first_remote):
-                if isinstance(src, dict):
-                    for k in ("wifi_signal", "wifiSignal", "rssi", "wifi_rssi", "wifiRssi"):
-                        if k in src and src[k] is not None:
-                            raw_wifi = src[k]
-                            break
-                    if raw_wifi is not None:
-                        break
-            wifi_signal: int | None = None
-            if raw_wifi is not None:
-                try:
-                    wifi_signal = int(raw_wifi)
-                except (TypeError, ValueError):
-                    wifi_signal = None
-
-            # Recherche multi-sources de l'état chargeur / dock
-            raw_charging = None
-            raw_docked = None
-            for src in (raw_data, first_remote):
-                if isinstance(src, dict):
-                    if "charging" in src and src["charging"] is not None:
-                        raw_charging = src["charging"]
-                    elif "is_charging" in src and src["is_charging"] is not None:
-                        raw_charging = src["is_charging"]
-                    elif "isCharging" in src and src["isCharging"] is not None:
-                        raw_charging = src["isCharging"]
-
-                    if "docked" in src and src["docked"] is not None:
-                        raw_docked = src["docked"]
-                    elif "is_docked" in src and src["is_docked"] is not None:
-                        raw_docked = src["is_docked"]
-                    elif "isDocked" in src and src["isDocked"] is not None:
-                        raw_docked = src["isDocked"]
-                    elif "on_dock" in src and src["on_dock"] is not None:
-                        raw_docked = src["on_dock"]
-
-                    for sub in ("power", "status", "battery_info", "batteryInfo", "device", "state"):
-                        sub_dict = src.get(sub)
-                        if isinstance(sub_dict, dict):
-                            if raw_charging is None:
-                                for k in ("charging", "is_charging", "isCharging"):
-                                    if k in sub_dict and sub_dict[k] is not None:
-                                        raw_charging = sub_dict[k]
-                                        break
-                            if raw_docked is None:
-                                for k in ("docked", "is_docked", "isDocked", "on_dock"):
-                                    if k in sub_dict and sub_dict[k] is not None:
-                                        raw_docked = sub_dict[k]
-                                        break
-                    if raw_charging is not None or raw_docked is not None:
-                        break
-
-            if raw_charging is not None and raw_docked is not None:
-                charging = bool(raw_charging)
-                docked = bool(raw_docked)
-            elif raw_charging is not None:
-                charging = bool(raw_charging)
-                docked = bool(raw_data.get("docked", charging))
-            elif raw_docked is not None:
-                docked = bool(raw_docked)
-                charging = bool(raw_docked)
-            elif "charging" in raw_data or "docked" in raw_data:
-                charging = bool(raw_data.get("charging", raw_data.get("docked", False)))
-                docked = bool(raw_data.get("docked", charging))
-            else:
-                charging = self._cached_data.get("charging")
-                docked = self._cached_data.get("docked")
-
-            # Écran ou mode actif
-            active_screen = str(
-                raw_data.get("active_screen")
-                or raw_data.get("current_screen")
-                or self._cached_data.get("active_screen", "Home")
-            )
-
             data: dict[str, Any] = {
-                "battery": battery,
-                "wifi_signal": wifi_signal,
-                "charging": charging,
-                "docked": docked,
-                "active_screen": active_screen,
                 "connected": True,
                 "serial_number": str(serial_num),
                 "mac_address": str(mac_addr) if mac_addr else None,
@@ -258,9 +138,9 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._cached_data.update(data)
             return data
 
-        except SevenhugsAuthError as err:
-            _LOGGER.error("Erreur d'authentification Sevenhugs sur %s: %s", self.name, err)
-            raise ConfigEntryAuthFailed(f"Session Sevenhugs invalide ou expirée: {err}") from err
+        except SmartRemoteAuthError as err:
+            _LOGGER.error("Erreur d'authentification Smart Remote sur %s: %s", self.name, err)
+            raise ConfigEntryAuthFailed(f"Session Smart Remote invalide ou expirée: {err}") from err
 
         except _NETWORK_ERRORS as err:
             self._consecutive_failures += 1
@@ -278,11 +158,11 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 # Échec lors du premier chargement initial sans cache préalable
                 raise UpdateFailed(
-                    f"Impossible de joindre la télécommande Sevenhugs (démarrage initial): {err}"
+                    f"Impossible de joindre la télécommande Smart Remote (démarrage initial): {err}"
                 ) from err
 
             _LOGGER.warning(
-                "La télécommande Sevenhugs ne répond plus après %d tentatives consécutives: %s",
+                "La télécommande Smart Remote ne répond plus après %d tentatives consécutives: %s",
                 self._consecutive_failures,
                 err,
             )
@@ -312,46 +192,8 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self.async_handle_wake_up(reason=reason)
 
     # =========================================================================
-    # Propriétés exposées pour les entités (sensor, binary_sensor, button)
+    # Propriétés exposées pour les entités (binary_sensor, button)
     # =========================================================================
-
-    @property
-    def battery(self) -> int | None:
-        """Retourne le pourcentage de batterie (0-100%)."""
-        source = self.data if self.data is not None else self._cached_data
-        val = source.get("battery")
-        if val is None:
-            return None
-        try:
-            return max(0, min(100, int(val)))
-        except (TypeError, ValueError):
-            return None
-
-    @property
-    def wifi_signal(self) -> int | None:
-        """Retourne la force du signal Wi-Fi en dBm (RSSI)."""
-        source = self.data if self.data is not None else self._cached_data
-        val = source.get("wifi_signal")
-        if val is None:
-            val = source.get("rssi")
-        if val is None:
-            return None
-        try:
-            return int(val)
-        except (TypeError, ValueError):
-            return None
-
-    @property
-    def charging(self) -> bool:
-        """Retourne True si la télécommande est en charge ou sur le dock."""
-        source = self.data if self.data is not None else self._cached_data
-        return bool(source.get("charging") or source.get("docked", False))
-
-    @property
-    def active_screen(self) -> str:
-        """Retourne le nom de l'écran ou de l'application active."""
-        source = self.data if self.data is not None else self._cached_data
-        return str(source.get("active_screen") or source.get("current_screen") or "Home")
 
     @property
     def is_connected(self) -> bool:
@@ -397,3 +239,8 @@ class SevenhugsDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def cached_data(self) -> dict[str, Any]:
         """Retourne une copie du dictionnaire de cache en mémoire."""
         return dict(self._cached_data)
+
+
+# Alias rétro-compatibles
+SmartRemoteCoordinator = SmartRemoteDataUpdateCoordinator
+SevenhugsDataUpdateCoordinator = SmartRemoteDataUpdateCoordinator
