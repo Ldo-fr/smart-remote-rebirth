@@ -73,6 +73,8 @@
             "name": "Advanced settings",
             "description": "Technical communication settings for the remote.",
             "data": {
+              "webhook_screen_name": "Home Assistant screen title on remote",
+              "pin_ha_first": "Pin Home Assistant screen first in carousel",
               "polling_interval": "Polling interval (seconds)",
               "timeout": "Request timeout (seconds)"
             }

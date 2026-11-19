@@ -73,6 +73,8 @@
             "name": "Paramètres avancés",
             "description": "Réglages techniques de communication avec la télécommande.",
             "data": {
+              "webhook_screen_name": "Titre de l'écran Home Assistant sur la télécommande",
+              "pin_ha_first": "Épingler l'écran Home Assistant en 1ère position du carrousel",
               "polling_interval": "Intervalle de rafraîchissement (secondes)",
               "timeout": "Délai d'attente des requêtes (secondes)"
             }

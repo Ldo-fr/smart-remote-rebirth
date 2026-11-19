@@ -68,6 +68,7 @@ from .crypto import (
     hkdf_sha512,
     verify_srp_m2,
 )
+from .custom_ui import merge_carousel_order, validate_component_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -813,3 +814,65 @@ class AsyncSmartRemoteClient:
                 _LOGGER.debug("Mise à jour optionnelle de carousel_order ignorée : %s", err)
 
         return deleted_count
+
+    async def async_update_carousel_order(
+        self,
+        ordered_items: list[str | dict] | None = None,
+        *,
+        webhook_screen_name: str | None = None,
+        pin_ha_first: bool = False,
+    ) -> list[dict]:
+        """Met à jour l'ordre, le nom et la visibilité du carrousel via PATCH /api/settings."""
+        settings = await self.async_request("GET", "/api/settings")
+        current_carousel = (
+            settings.get("carousel_order", [])
+            if isinstance(settings, dict) and isinstance(settings.get("carousel_order"), list)
+            else []
+        )
+        new_carousel = merge_carousel_order(
+            current_carousel,
+            ordered_items,
+            webhook_screen_name=webhook_screen_name,
+            pin_ha_first=pin_ha_first,
+        )
+        if new_carousel != current_carousel:
+            await self.async_request("PATCH", "/api/settings", {"carousel_order": new_carousel})
+        return new_carousel
+
+    async def async_get_custom_widgets(self) -> list[dict]:
+        """Récupère le catalogue des modèles de widgets disponibles (GET /api/custom/widgets)."""
+        res = await self.async_request("GET", "/api/custom/widgets")
+        return res if isinstance(res, list) else []
+
+    async def async_get_custom_ui(self, component_id: str) -> dict:
+        """Récupère la grille Custom UI d'un appareil (GET /api/custom/{package_id}:{device_id})."""
+        pkg_id, dev_id = validate_component_id(component_id)
+        res = await self.async_request("GET", f"/api/custom/{pkg_id}:{dev_id}")
+        if not isinstance(res, dict):
+            raise SmartRemoteConnectionError(
+                f"Réponse invalide lors de la lecture de /api/custom/{pkg_id}:{dev_id}"
+            )
+        return res
+
+    async def async_get_device_commands(self, component_id: str) -> list[dict]:
+        """Récupère les commandes assignables d'un appareil (GET /api/custom/{package_id}:{device_id}/commands)."""
+        pkg_id, dev_id = validate_component_id(component_id)
+        res = await self.async_request("GET", f"/api/custom/{pkg_id}:{dev_id}/commands")
+        return res if isinstance(res, list) else []
+
+    async def async_set_custom_ui(self, component_id: str, custom_device_payload: dict) -> dict:
+        """Met à jour la grille Custom UI 6x12 d'un appareil (PUT /api/custom/{package_id}:{device_id})."""
+        pkg_id, dev_id = validate_component_id(component_id)
+        if not isinstance(custom_device_payload, dict):
+            raise ValueError("Le payload Custom UI doit être un dictionnaire")
+        res = await self.async_request(
+            "PUT", f"/api/custom/{pkg_id}:{dev_id}", custom_device_payload
+        )
+        return res if isinstance(res, dict) else {"status": "ok"}
+
+    async def async_restore_custom_ui(self, component_id: str) -> dict:
+        """Restaure la grille Custom UI par défaut d'un appareil (PUT /api/custom/restore)."""
+        pkg_id, dev_id = validate_component_id(component_id)
+        payload = {"package_id": pkg_id, "device_id": dev_id}
+        res = await self.async_request("PUT", "/api/custom/restore", payload)
+        return res if isinstance(res, dict) else {"status": "ok"}

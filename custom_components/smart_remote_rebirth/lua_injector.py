@@ -39,9 +39,14 @@ try:
         SevenhugsConnectionError,
     )
     from .const import (
+        CONF_CAROUSEL_ORDER,
         CONF_ENTITIES,
+        CONF_PIN_HA_FIRST,
         CONF_REMOTE_ID,
         CONF_SERIAL_NUMBER,
+        CONF_WEBHOOK_SCREEN_NAME,
+        DEFAULT_PIN_HA_FIRST,
+        DEFAULT_WEBHOOK_SCREEN_NAME,
         DOMAIN,
     )
     from .webhook import async_generate_webhook_url
@@ -52,9 +57,14 @@ except (ImportError, ValueError):
         SevenhugsConnectionError,
     )
     from custom_components.smart_remote_rebirth.const import (
+        CONF_CAROUSEL_ORDER,
         CONF_ENTITIES,
+        CONF_PIN_HA_FIRST,
         CONF_REMOTE_ID,
         CONF_SERIAL_NUMBER,
+        CONF_WEBHOOK_SCREEN_NAME,
+        DEFAULT_PIN_HA_FIRST,
+        DEFAULT_WEBHOOK_SCREEN_NAME,
         DOMAIN,
     )
     from custom_components.smart_remote_rebirth.webhook import (
@@ -379,6 +389,7 @@ class SmartRemoteLuaInjector:
 
                 success = await self.client.async_push_webhooks(triggers)
                 if success:
+                    await self._async_post_sync_update_carousel()
                     _LOGGER.info(
                         "Synchronisation Lua réussie de %d déclencheurs vers Sevenhugs (%s)",
                         len(triggers),
@@ -426,6 +437,33 @@ class SmartRemoteLuaInjector:
                 )
                 self._pending_resync = True
                 return False
+
+    async def _async_post_sync_update_carousel(self) -> None:
+        """Renomme et ordonne l'écran Webhooks Home Assistant dans le carrousel après synchronisation."""
+        update_fn = getattr(type(self.client), "async_update_carousel_order", None)
+        if not inspect.iscoroutinefunction(update_fn):
+            return
+
+        try:
+            opts = getattr(self.entry, "options", None)
+            options = dict(opts) if isinstance(opts, Mapping) else {}
+            wh_name = options.get(CONF_WEBHOOK_SCREEN_NAME, DEFAULT_WEBHOOK_SCREEN_NAME)
+            if not isinstance(wh_name, str) or not wh_name.strip():
+                wh_name = DEFAULT_WEBHOOK_SCREEN_NAME
+            pin_first = options.get(CONF_PIN_HA_FIRST, DEFAULT_PIN_HA_FIRST)
+            if not isinstance(pin_first, bool):
+                pin_first = DEFAULT_PIN_HA_FIRST
+            ordered_items = options.get(CONF_CAROUSEL_ORDER)
+            if not isinstance(ordered_items, list):
+                ordered_items = None
+
+            await self.client.async_update_carousel_order(
+                ordered_items,
+                webhook_screen_name=wh_name,
+                pin_ha_first=pin_first,
+            )
+        except Exception as err:
+            _LOGGER.debug("Mise à jour post-sync de carousel_order ignorée : %s", err)
 
     def _notify_coordinator_wake_up(self, reason: str = "lua_sync") -> None:
         """Notifie le coordinateur d'un réveil confirmé suite à une synchronisation réussie."""

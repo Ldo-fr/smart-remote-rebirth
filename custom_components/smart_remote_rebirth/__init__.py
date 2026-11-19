@@ -25,13 +25,18 @@ if os.path.isdir(_PYLIB_DIR) and _PYLIB_DIR not in sys.path:
 try:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
-    from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+    from homeassistant.exceptions import (
+        ConfigEntryAuthFailed,
+        ConfigEntryNotReady,
+        HomeAssistantError,
+    )
     from homeassistant.helpers.aiohttp_client import async_create_clientsession
 except ImportError:
     ConfigEntry = Any  # type: ignore[misc,assignment]
     HomeAssistant = Any  # type: ignore[misc,assignment]
     ConfigEntryAuthFailed = Exception  # type: ignore[misc,assignment]
     ConfigEntryNotReady = Exception  # type: ignore[misc,assignment]
+    HomeAssistantError = Exception  # type: ignore[misc,assignment]
 
     def async_create_clientsession(*args: Any, **kwargs: Any) -> Any:
         return aiohttp.ClientSession()
@@ -47,20 +52,29 @@ from .client import (
 )
 from .const import (
     CONF_AUTO_SYNC_WEBHOOKS,
+    CONF_CAROUSEL_ORDER,
     CONF_DELETE_DEVICES,
     CONF_HOST,
+    CONF_PIN_HA_FIRST,
     CONF_PORT,
     CONF_TRIGGER_RESYNC,
+    CONF_WEBHOOK_SCREEN_NAME,
     DEFAULT_AUTO_SYNC_WEBHOOKS,
+    DEFAULT_PIN_HA_FIRST,
     DEFAULT_PORT,
+    DEFAULT_WEBHOOK_SCREEN_NAME,
     DOMAIN,
     PLATFORMS,
+    SERVICE_RESTORE_CUSTOM_UI_LAYOUT,
+    SERVICE_SET_CAROUSEL_ORDER,
+    SERVICE_SET_CUSTOM_UI_LAYOUT,
 )
 from .coordinator import (
     SevenhugsDataUpdateCoordinator,
     SmartRemoteCoordinator,
     SmartRemoteDataUpdateCoordinator,
 )
+from .custom_ui import build_custom_ui_payload, resolve_component_id_from_carousel
 from .lua_injector import SevenhugsLuaInjector, SmartRemoteLuaInjector
 from .webhook import async_register_webhook, async_unregister_webhook
 
@@ -247,6 +261,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         auto_sync = options.get(CONF_AUTO_SYNC_WEBHOOKS, DEFAULT_AUTO_SYNC_WEBHOOKS)
         trigger_resync = options.get(CONF_TRIGGER_RESYNC, False)
+        carousel_order_opt = options.get(CONF_CAROUSEL_ORDER)
+        if isinstance(carousel_order_opt, list) and carousel_order_opt and not (trigger_resync or auto_sync):
+            try:
+                wh_name = options.get(CONF_WEBHOOK_SCREEN_NAME, DEFAULT_WEBHOOK_SCREEN_NAME)
+                pin_first = options.get(CONF_PIN_HA_FIRST, DEFAULT_PIN_HA_FIRST)
+                await client.async_update_carousel_order(
+                    carousel_order_opt,
+                    webhook_screen_name=str(wh_name) if isinstance(wh_name, str) else DEFAULT_WEBHOOK_SCREEN_NAME,
+                    pin_ha_first=bool(pin_first) if isinstance(pin_first, bool) else DEFAULT_PIN_HA_FIRST,
+                )
+                if hasattr(coordinator, "async_request_refresh"):
+                    await coordinator.async_request_refresh()
+            except Exception as car_err:
+                _LOGGER.warning("Erreur lors de la mise à jour de l'ordre du carrousel: %s", car_err)
+
         if trigger_resync or auto_sync:
             _LOGGER.info(
                 "Planification de la synchronisation des entités en arrière-plan pour %s (trigger_resync=%s, auto_sync=%s)",
@@ -259,6 +288,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             else:
                 sync_task = asyncio.create_task(injector.async_sync_entities())
             runtime_data["_sync_task"] = sync_task
+
+        _async_register_services(hass)
 
     except Exception:
         await async_unload_entry(hass, entry)
@@ -308,11 +339,161 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if hasattr(entry, "runtime_data"):
         entry.runtime_data = None
 
-    # 5. Nettoyage de l'espace de domaine si vide
+    # 5. Nettoyage de l'espace de domaine et des services si vide
     if DOMAIN in hass.data and not hass.data[DOMAIN]:
         hass.data.pop(DOMAIN, None)
+        if hasattr(hass, "services") and hasattr(hass.services, "async_remove"):
+            for svc_name in (
+                SERVICE_SET_CAROUSEL_ORDER,
+                SERVICE_SET_CUSTOM_UI_LAYOUT,
+                SERVICE_RESTORE_CUSTOM_UI_LAYOUT,
+            ):
+                if hasattr(hass.services, "has_service") and hass.services.has_service(DOMAIN, svc_name):
+                    hass.services.async_remove(DOMAIN, svc_name)
 
     return True
+
+
+def _resolve_runtime_data(hass: HomeAssistant, entry_id: str | None = None) -> Any:
+    """Résout le conteneur SmartRemoteData cible pour un appel de service."""
+    domain_data = getattr(hass, "data", {}).get(DOMAIN, {}) if hasattr(hass, "data") else {}
+    if not isinstance(domain_data, Mapping) or not domain_data:
+        raise HomeAssistantError("Aucune télécommande Smart Remote n'est configurée ou active")
+
+    if isinstance(entry_id, str) and entry_id.strip():
+        target = domain_data.get(entry_id.strip())
+        if target is None:
+            raise HomeAssistantError(f"ConfigEntry Smart Remote introuvable : {entry_id}")
+        return target
+
+    return next(iter(domain_data.values()))
+
+
+def _extract_carousel_from_runtime(runtime_data: Any) -> list[dict[str, Any]]:
+    """Extrait la liste carousel_order en cache du coordinateur si disponible."""
+    coordinator = getattr(runtime_data, "coordinator", None) or (
+        runtime_data.get("coordinator") if isinstance(runtime_data, Mapping) else None
+    )
+    coord_data = getattr(coordinator, "data", None) if coordinator else None
+    if isinstance(coord_data, Mapping):
+        raw_settings = coord_data.get("raw_settings")
+        if isinstance(raw_settings, Mapping) and isinstance(raw_settings.get("carousel_order"), list):
+            return list(raw_settings["carousel_order"])
+    return []
+
+
+def _async_register_services(hass: HomeAssistant) -> None:
+    """Enregistre les services Home Assistant du Jalon v0.6 (Carrousel & Custom UI 6x12)."""
+    if not hasattr(hass, "services") or not hasattr(hass.services, "async_register"):
+        return
+
+    async def handle_set_carousel_order(call: Any) -> None:
+        data = getattr(call, "data", None) or getattr(call, "service_data", {}) or {}
+        runtime_data = _resolve_runtime_data(hass, data.get("entry_id"))
+        client: AsyncSmartRemoteClient = getattr(
+            runtime_data, "client", runtime_data.get("client") if isinstance(runtime_data, Mapping) else None
+        )
+        coordinator = getattr(
+            runtime_data, "coordinator", runtime_data.get("coordinator") if isinstance(runtime_data, Mapping) else None
+        )
+        items = data.get("items") if "items" in data else data.get("carousel_order")
+        if items is not None and not isinstance(items, list):
+            raise HomeAssistantError("Le paramètre 'items' doit être une liste d'écrans")
+        wh_name = data.get(CONF_WEBHOOK_SCREEN_NAME)
+        pin_first = bool(data.get(CONF_PIN_HA_FIRST, False))
+
+        try:
+            await client.async_update_carousel_order(
+                items,
+                webhook_screen_name=str(wh_name) if isinstance(wh_name, str) else None,
+                pin_ha_first=pin_first,
+            )
+            if coordinator is not None and hasattr(coordinator, "async_request_refresh"):
+                await coordinator.async_request_refresh()
+        except Exception as err:
+            raise HomeAssistantError(f"Échec de la mise à jour du carrousel Smart Remote : {err}") from err
+
+    async def handle_set_custom_ui_layout(call: Any) -> None:
+        data = getattr(call, "data", None) or getattr(call, "service_data", {}) or {}
+        runtime_data = _resolve_runtime_data(hass, data.get("entry_id"))
+        client: AsyncSmartRemoteClient = getattr(
+            runtime_data, "client", runtime_data.get("client") if isinstance(runtime_data, Mapping) else None
+        )
+        target = str(data.get("device") or data.get("component_id") or "").strip()
+        if not target:
+            raise HomeAssistantError("Le paramètre 'device' ou 'component_id' est requis")
+
+        try:
+            carousel = _extract_carousel_from_runtime(runtime_data)
+            if not carousel:
+                settings = await client.async_request("GET", "/api/settings")
+                if isinstance(settings, Mapping) and isinstance(settings.get("carousel_order"), list):
+                    carousel = list(settings["carousel_order"])
+
+            component_id = resolve_component_id_from_carousel(target, carousel)
+            raw_layout = data.get("raw_layout")
+            existing_ui: dict[str, Any] | None = None
+            available_commands: list[dict[str, Any]] = []
+
+            if raw_layout is None:
+                try:
+                    existing_ui = await client.async_get_custom_ui(component_id)
+                except Exception:
+                    existing_ui = None
+                try:
+                    available_commands = await client.async_get_device_commands(component_id)
+                except Exception:
+                    available_commands = []
+
+            payload = build_custom_ui_payload(
+                component_id,
+                widgets=data.get("widgets"),
+                screens=data.get("screens"),
+                raw_layout=raw_layout,
+                top_key=data.get("top_key", "power"),
+                top_icon=str(data.get("top_icon") or "speakers"),
+                existing_ui=existing_ui,
+                available_commands=available_commands,
+            )
+            await client.async_set_custom_ui(component_id, payload)
+        except HomeAssistantError:
+            raise
+        except Exception as err:
+            raise HomeAssistantError(
+                f"Échec de la configuration Custom UI 6x12 pour {target!r} : {err}"
+            ) from err
+
+    async def handle_restore_custom_ui_layout(call: Any) -> None:
+        data = getattr(call, "data", None) or getattr(call, "service_data", {}) or {}
+        runtime_data = _resolve_runtime_data(hass, data.get("entry_id"))
+        client: AsyncSmartRemoteClient = getattr(
+            runtime_data, "client", runtime_data.get("client") if isinstance(runtime_data, Mapping) else None
+        )
+        target = str(data.get("device") or data.get("component_id") or "").strip()
+        if not target:
+            raise HomeAssistantError("Le paramètre 'device' ou 'component_id' est requis")
+
+        try:
+            carousel = _extract_carousel_from_runtime(runtime_data)
+            if not carousel:
+                settings = await client.async_request("GET", "/api/settings")
+                if isinstance(settings, Mapping) and isinstance(settings.get("carousel_order"), list):
+                    carousel = list(settings["carousel_order"])
+
+            component_id = resolve_component_id_from_carousel(target, carousel)
+            await client.async_restore_custom_ui(component_id)
+        except Exception as err:
+            raise HomeAssistantError(
+                f"Échec de la restauration Custom UI pour {target!r} : {err}"
+            ) from err
+
+    for svc_name, handler in (
+        (SERVICE_SET_CAROUSEL_ORDER, handle_set_carousel_order),
+        (SERVICE_SET_CUSTOM_UI_LAYOUT, handle_set_custom_ui_layout),
+        (SERVICE_RESTORE_CUSTOM_UI_LAYOUT, handle_restore_custom_ui_layout),
+    ):
+        if not (hasattr(hass.services, "has_service") and hass.services.has_service(DOMAIN, svc_name)):
+            hass.services.async_register(DOMAIN, svc_name, handler)
 
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

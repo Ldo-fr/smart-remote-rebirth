@@ -1,0 +1,100 @@
+set_carousel_order:
+  name: Set carousel order
+  description: Reorder, rename, or hide/show screens on the Smart Remote carousel via PATCH /api/settings.
+  fields:
+    items:
+      name: Carousel screens
+      description: Ordered list of screen names, IDs (e.g. "Bose SOLO5", "home_assistant"), or dicts with "id", "name", and "hidden". Unlisted screens are kept at the end.
+      required: false
+      example: '["home_assistant", "Panasonic TV", {"id": "Bose SOLO5", "name": "Barre Bose", "hidden": false}]'
+      selector:
+        object:
+    webhook_screen_name:
+      name: Home Assistant screen title
+      description: Title displayed at the top of the Home Assistant webhooks screen on the remote.
+      required: false
+      example: "Home Assistant"
+      selector:
+        text:
+    pin_ha_first:
+      name: Pin Home Assistant screen first
+      description: Place the Home Assistant webhooks screen at the first position of the carousel.
+      required: false
+      default: false
+      selector:
+        boolean:
+    entry_id:
+      name: Config Entry ID
+      description: Optional config entry ID when multiple Smart Remotes are configured.
+      required: false
+      selector:
+        text:
+
+set_custom_ui_layout:
+  name: Set Custom UI 6x12 grid layout
+  description: Configure the 6x12 touchscreen grid of a customizable remote device (Infrared, TV, Media) via PUT /api/custom/{package_id}:{device_id}.
+  fields:
+    device:
+      name: Target remote device
+      description: Friendly name in the carousel (e.g. "Bose SOLO5", "Panasonic TV") or technical component_id ("package_id:device_id").
+      required: true
+      example: "Bose SOLO5"
+      selector:
+        text:
+    widgets:
+      name: Widgets (Declarative auto-placed 6x12 grid)
+      description: List of widgets ("button" 2x2, "abcd" 6x2, "navigation" 6x6, "arrows_trackpad" 6x6, "volume_channel" 6x6, "numpad" 6x8). Coordinates (x, y) and multi-screen pagination are computed automatically if omitted.
+      required: false
+      example: '[{"type": "volume_channel"}, {"type": "button", "key": "mute", "name": "Mute"}, {"type": "button", "key": "play", "long_press_key": "stop"}]'
+      selector:
+        object:
+    screens:
+      name: Screens (Explicit multi-page 6x12 definition)
+      description: Explicit list of screen pages, each containing a "widgets" list.
+      required: false
+      selector:
+        object:
+    raw_layout:
+      name: Raw layout (Expert JSON)
+      description: Complete native SrCustomUiApi layout dictionary (overrides declarative widgets/screens).
+      required: false
+      selector:
+        object:
+    top_key:
+      name: Top header button command key
+      description: Command key assigned to the top header button (default "power").
+      required: false
+      default: "power"
+      selector:
+        text:
+    top_icon:
+      name: Top header icon
+      description: Icon identifier for the top header bar (e.g. "speakers", "tv").
+      required: false
+      default: "speakers"
+      selector:
+        text:
+    entry_id:
+      name: Config Entry ID
+      description: Optional config entry ID when multiple Smart Remotes are configured.
+      required: false
+      selector:
+        text:
+
+restore_custom_ui_layout:
+  name: Restore default Custom UI layout
+  description: Restore the factory default 6x12 grid layout for a customizable device on the Smart Remote via PUT /api/custom/restore.
+  fields:
+    device:
+      name: Target remote device
+      description: Friendly name in the carousel (e.g. "Bose SOLO5", "Panasonic TV") or technical component_id ("package_id:device_id").
+      required: true
+      example: "Bose SOLO5"
+      selector:
+        text:
+    entry_id:
+      name: Config Entry ID
+      description: Optional config entry ID when multiple Smart Remotes are configured.
+      required: false
+      selector:
+        text:

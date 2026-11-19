@@ -34,10 +34,20 @@ DEFAULT_AUTO_SYNC_WEBHOOKS = True
 CONF_TIMEOUT = "timeout"
 DEFAULT_TIMEOUT = 10
 
-# Options avancées et entités exposées (Phase 4 / R3)
+# Options avancées et entités exposées (Phase 4 / R3 & Jalon v0.6)
 CONF_ENTITIES = "entities"
 CONF_DELETE_DEVICES = "delete_devices"
 CONF_TRIGGER_RESYNC = "trigger_resync"
+CONF_CAROUSEL_ORDER = "carousel_order"
+CONF_WEBHOOK_SCREEN_NAME = "webhook_screen_name"
+CONF_PIN_HA_FIRST = "pin_ha_first"
+DEFAULT_WEBHOOK_SCREEN_NAME = "Home Assistant"
+DEFAULT_PIN_HA_FIRST = True
+
+# Services Home Assistant (Jalon v0.6)
+SERVICE_SET_CAROUSEL_ORDER = "set_carousel_order"
+SERVICE_SET_CUSTOM_UI_LAYOUT = "set_custom_ui_layout"
+SERVICE_RESTORE_CUSTOM_UI_LAYOUT = "restore_custom_ui_layout"
 DEFAULT_EXPOSED_DOMAINS: list[str] = [
     "light",
     "switch",
