@@ -34,12 +34,14 @@ from homeassistant.helpers.aiohttp_client import (
 from .client import AsyncSmartRemoteClient, SevenhugsAuthError, SevenhugsConnectionError
 from .const import (
     CONF_AUTO_SYNC_WEBHOOKS,
+    CONF_CAROUSEL_ORDER,
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
     CONF_CONTROLLER_ID,
     CONF_DELETE_DEVICES,
     CONF_ENTITIES,
     CONF_HOST,
+    CONF_PIN_HA_FIRST,
     CONF_POLLING_INTERVAL,
     CONF_PORT,
     CONF_REMOTE_ID,
@@ -49,13 +51,16 @@ from .const import (
     CONF_SESSION_WRITE_KEY,
     CONF_TIMEOUT,
     CONF_TRIGGER_RESYNC,
+    CONF_WEBHOOK_SCREEN_NAME,
     DEFAULT_AUTO_SYNC_WEBHOOKS,
     DEFAULT_ENTITIES,
     DEFAULT_EXPOSED_DOMAINS,
+    DEFAULT_PIN_HA_FIRST,
     DEFAULT_POLLING_INTERVAL,
     DEFAULT_PORT,
     DEFAULT_TIMEOUT,
     DEFAULT_TRIGGER_RESYNC,
+    DEFAULT_WEBHOOK_SCREEN_NAME,
     DOMAIN,
     ERROR_CANNOT_CONNECT,
     ERROR_INVALID_PIN,
@@ -610,6 +615,9 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                     removed_remote = [
                         rid for rid in initial_remote_ids if rid not in submitted_items
                     ]
+                    kept_remote = [
+                        x for x in submitted_items if x.startswith("sevenhugs.")
+                    ]
                     ha_entities = [
                         x for x in submitted_items if not x.startswith("sevenhugs.")
                     ]
@@ -619,6 +627,11 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                         processed_input[CONF_DELETE_DEVICES] = list(
                             dict.fromkeys(existing_del + removed_remote)
                         )
+                    original_kept_order = [
+                        rid for rid in initial_remote_ids if rid not in set(removed_remote)
+                    ]
+                    if kept_remote and kept_remote != original_kept_order:
+                        processed_input[CONF_CAROUSEL_ORDER] = kept_remote
 
             return self.async_create_entry(title="", data=processed_input)
 
@@ -664,6 +677,14 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         default_trigger = raw_trigger if isinstance(raw_trigger, bool) else False
         raw_auto_sync = options.get(CONF_AUTO_SYNC_WEBHOOKS, DEFAULT_AUTO_SYNC_WEBHOOKS)
         default_auto_sync = raw_auto_sync if isinstance(raw_auto_sync, bool) else DEFAULT_AUTO_SYNC_WEBHOOKS
+        raw_wh_name = options.get(CONF_WEBHOOK_SCREEN_NAME, DEFAULT_WEBHOOK_SCREEN_NAME)
+        default_wh_name = (
+            raw_wh_name.strip()
+            if isinstance(raw_wh_name, str) and raw_wh_name.strip()
+            else DEFAULT_WEBHOOK_SCREEN_NAME
+        )
+        raw_pin_first = options.get(CONF_PIN_HA_FIRST, DEFAULT_PIN_HA_FIRST)
+        default_pin_first = raw_pin_first if isinstance(raw_pin_first, bool) else DEFAULT_PIN_HA_FIRST
 
         unified_selector = (
             selector.SelectSelector(
@@ -698,6 +719,14 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                 ),
                 vol.Optional("advanced_settings"): ha_section(
                     vol.Schema({
+                        vol.Optional(
+                            CONF_WEBHOOK_SCREEN_NAME,
+                            default=default_wh_name,
+                        ): str,
+                        vol.Optional(
+                            CONF_PIN_HA_FIRST,
+                            default=default_pin_first,
+                        ): bool,
                         vol.Optional(
                             CONF_POLLING_INTERVAL,
                             default=default_polling,

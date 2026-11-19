@@ -85,16 +85,34 @@ async def async_get_config_entry_diagnostics(
         )
 
     coord_info: dict[str, Any] = {}
+    carousel_summary: list[dict[str, Any]] = []
     if coordinator is not None:
         raw_coord_data = getattr(coordinator, "data", None) or getattr(
             coordinator, "cached_data", {}
         )
+        if isinstance(raw_coord_data, Mapping):
+            raw_settings = raw_coord_data.get("raw_settings")
+            if isinstance(raw_settings, Mapping) and isinstance(
+                raw_settings.get("carousel_order"), list
+            ):
+                carousel_summary = [
+                    {
+                        "id": item.get("id"),
+                        "name": item.get("name"),
+                        "category": item.get("category"),
+                        "ui_package_id": item.get("ui_package_id"),
+                        "hidden": item.get("hidden", False),
+                    }
+                    for item in raw_settings["carousel_order"]
+                    if isinstance(item, Mapping)
+                ]
         coord_info = {
             "last_update_success": getattr(coordinator, "last_update_success", None),
             "is_connected": getattr(coordinator, "is_connected", None),
             "consecutive_failures": getattr(coordinator, "consecutive_failures", 0),
             "firmware_version": getattr(coordinator, "firmware_version", None),
             "remote_id": getattr(coordinator, "remote_id", None),
+            "carousel_order": carousel_summary,
             "data": async_redact_data(raw_coord_data, TO_REDACT),
         }
 

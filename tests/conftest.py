@@ -423,6 +423,24 @@ class MockSmartRemoteServer:
         self.fail_hello: bool = False
         self.fail_srp_m3: bool = False
         self.fail_m5_disconnect: bool = False
+        self.carousel_order: list[dict[str, Any]] = [
+            {
+                "hidden": False,
+                "ui_package_id": "sevenhugs.ui.infrared",
+                "id": "sevenhugs.control.infrared:osm_T3825_31572c5c",
+                "category": "tv-media",
+                "name": "Panasonic TV",
+            },
+            {
+                "hidden": False,
+                "ui_package_id": "sevenhugs.ui.infrared",
+                "id": "sevenhugs.control.infrared:SOLO5_M3708_fff1980f",
+                "category": "speakers",
+                "name": "Bose SOLO5",
+            },
+        ]
+        self.custom_ui_store: dict[str, dict[str, Any]] = {}
+        self.restored_custom_ui_ids: list[str] = []
 
     async def start(self) -> None:
         """Démarre le serveur mock sur un port dynamique local."""
@@ -748,6 +766,8 @@ class MockSmartRemoteServer:
 
         resp_obj: Any = {}
         if path == "/api/settings":
+            if isinstance(req_data, dict) and isinstance(req_data.get("carousel_order"), list):
+                self.carousel_order = list(req_data["carousel_order"])
             sn = getattr(self, "serial_number", "a06fe048b48b260139")
             resp_obj = {
                 "battery": 95,
@@ -764,6 +784,7 @@ class MockSmartRemoteServer:
                         "mac_address": "38:D7:CA:00:16:5E",
                     }
                 ],
+                "carousel_order": list(self.carousel_order),
             }
         elif path == "/api/manifests":
             resp_obj = [
@@ -772,6 +793,55 @@ class MockSmartRemoteServer:
             ]
         elif path == "/api/devices":
             resp_obj = {"url": "/api/devices/sevenhugs.control.webhooks/setup"}
+        elif path == "/api/custom/widgets":
+            resp_obj = [
+                {"type": "button", "name": "Button", "width": 2, "height": 2, "controls": []},
+                {"type": "volume_channel", "name": "Volume / Channel", "width": 6, "height": 6, "controls": []},
+                {"type": "navigation", "name": "Navigation", "width": 6, "height": 6, "controls": []},
+            ]
+        elif path == "/api/custom/restore":
+            if isinstance(req_data, dict):
+                comp_id = f"{req_data.get('package_id', '')}:{req_data.get('device_id', '')}"
+                self.restored_custom_ui_ids.append(comp_id)
+                self.custom_ui_store.pop(comp_id, None)
+            resp_obj = {"status": "restored"}
+        elif path.startswith("/api/custom/") and path.endswith("/commands"):
+            comp_id = path[len("/api/custom/") : -len("/commands")]
+            pkg_id, _, dev_id = comp_id.partition(":")
+            resp_obj = [
+                {
+                    "package_id": pkg_id,
+                    "device_id": dev_id,
+                    "commands": [
+                        {"key": "power", "name": "Power"},
+                        {"key": "mute", "name": "Mute"},
+                        {"key": "vol_up", "name": "Vol up"},
+                        {"key": "vol_down", "name": "Vol down"},
+                        {"key": "ch_up", "name": "Ch up"},
+                        {"key": "ch_down", "name": "Ch down"},
+                        {"key": "play", "name": "Play"},
+                        {"key": "stop", "name": "Stop"},
+                    ],
+                }
+            ]
+        elif path.startswith("/api/custom/"):
+            comp_id = path[len("/api/custom/") :]
+            pkg_id, _, dev_id = comp_id.partition(":")
+            if isinstance(req_data, dict):
+                self.custom_ui_store[comp_id] = req_data
+            resp_obj = self.custom_ui_store.get(
+                comp_id,
+                {
+                    "package_id": pkg_id,
+                    "device_id": dev_id,
+                    "customized": False,
+                    "custom_limit_reached": False,
+                    "layout": {
+                        "top": {"id": "top_1", "type": "top", "icon": "speakers", "controls": []},
+                        "fragments": [{"id": "main", "name": "Main screen", "screens": []}],
+                    },
+                },
+            )
         else:
             return 404, {}, b"Not Found"
 
@@ -793,6 +863,18 @@ class MockSmartRemoteServer:
         data = json.loads(body.decode("utf-8")) if body else {}
         state = data.get("state", "connect")
         self.lua_steps_called.append(state)
+        if state == "done":
+            if not any(
+                str(item.get("id", "")).startswith("sevenhugs.control.webhooks:")
+                for item in self.carousel_order
+            ):
+                self.carousel_order.append({
+                    "hidden": False,
+                    "ui_package_id": "sevenhugs.ui.webhooks",
+                    "id": "sevenhugs.control.webhooks:1",
+                    "category": "services",
+                    "name": "Webhooks",
+                })
 
         resp_data = {"status": "success", "state": state}
         return 200, {"Content-Type": "application/json"}, json.dumps(resp_data).encode("utf-8")

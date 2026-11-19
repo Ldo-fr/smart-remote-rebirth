@@ -265,15 +265,15 @@ Conformément aux capacités réelles de l'API `/api/settings` du firmware `v0.7
 - Config Flow graphique (mDNS, IP, PIN SRP-6a, `reconfigure`, `reauth`).
 - Coordinateur résilient au Deep Sleep, Webhooks locaux (`local_only=True`), Injecteur Lua et Options Flow.
 
-### ✅ Jalon v0.5 (Actuel) — Alignement PRD, Nettoyage & Diagnostics HA
+### ✅ Jalon v0.5 — Alignement PRD, Nettoyage & Diagnostics HA
 - **Suppression des capteurs fantômes** : Retrait de `custom_components/smart_remote_rebirth/sensor.py`, retrait de `SevenhugsChargingBinarySensor` dans `binary_sensor.py`, et retrait des propriétés inutilisées (`battery`, `wifi_signal`, `charging`, `active_screen`) dans `coordinator.py` et les fichiers de traduction.
 - **Unification du nommage `SmartRemote*`** : Renommage des classes internes `Sevenhugs*` en `SmartRemote*` dans `custom_components/smart_remote_rebirth/` (avec alias de rétro-compatibilité) et `tests/`.
 - **Normalisation du dossier `tests/`** : Conversion des harnais `adversarial_*_harness.py` avec le préfixe `test_` et `load_tests` pour que 100 % des tests du dossier `tests/` soient exécutés par `python -m unittest discover tests` en CI.
 - **Support Diagnostics HA (`diagnostics.py`)** : Ajout du téléchargement de diagnostic anonymisé (`async_get_config_entry_diagnostics`) pour faciliter le support utilisateur.
 
-### 🚀 Jalon v0.6 (Moyen Terme) — Ordonnancement du Carrousel & Grilles Custom UI (`6x12`)
-- Réorganisation graphique de l'ordre d'affichage des écrans (`carousel_order`) via `PATCH /api/settings`.
-- Personnalisation de la disposition des boutons et widgets sur la grille tactile (`6x12`) via l'API `SrCustomUiApi` (`GET/PUT /api/custom/{package_id}:{device_id}`).
+### ✅ Jalon v0.6 (Actuel) — Ordonnancement du Carrousel & Grilles Custom UI (`6x12`)
+- **Réorganisation du carrousel (`carousel_order`)** : Renommage automatique de l'écran Webhooks en `"Home Assistant"` et positionnement en 1ère place du carrousel via `PATCH /api/settings`, prise en compte du réordonnancement dans l'Options Flow et ajout du service `smart_remote_rebirth.set_carousel_order`.
+- **Grilles tactiles `6x12` (`SrCustomUiApi` — `custom_ui.py`)** : Constructeur déclaratif avec placement automatique sur la grille `6x12`, détection de collisions, découpage multi-pages et mode expert `raw_layout` via les services `smart_remote_rebirth.set_custom_ui_layout` et `smart_remote_rebirth.restore_custom_ui_layout`.
 
 ### 💡 Jalon v1.0 (Long Terme / Exploratoire) — Interfaces Riches Natives
 - Exploration de l'injection directe dans les templates graphiques embarqués en ROM (`sevenhugs.ui.light` avec curseurs de variation/couleur via `sevenhugs.control.dummy_light` ou émulation Hue locale, et `sevenhugs.ui.media` pour les contrôles multimédias dédiés).
