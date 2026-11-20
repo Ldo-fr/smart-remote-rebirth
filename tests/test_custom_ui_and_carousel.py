@@ -438,6 +438,63 @@ class TestJalonV06EndToEndIntegration(unittest.IsolatedAsyncioTestCase):
 
         await async_unload_entry(self.hass, self.entry)
 
+    async def test_options_flow_one_click_device_menu(self) -> None:
+        """Vérifie le menu 1-clic dans ⚙️ Configurer : liste d'appareils avec bouton Personnaliser direct sans déroulant."""
+        from unittest.mock import patch
+
+        self.entry.options = {CONF_ENTITIES: ["light.salon"]}
+        await async_setup_entry(self.hass, self.entry)
+        sync_task = self.hass.data[DOMAIN][self.entry.entry_id].get("_sync_task")
+        if sync_task is not None:
+            await sync_task
+
+        flow = SmartRemoteOptionsFlowHandler(self.entry)
+        flow.hass = self.hass
+
+        with patch(
+            "custom_components.smart_remote_rebirth.config_flow.ha_section",
+            side_effect=lambda schema, opts=None: schema,
+        ):
+            # 1. L'ouverture de ⚙️ Configurer affiche immédiatement un menu de boutons 1-clic
+            menu_res = await flow.async_step_init(None)
+            self.assertEqual(menu_res["type"], "menu")
+            self.assertEqual(menu_res["step_id"], "init")
+            menu_opts = menu_res["menu_options"]
+            self.assertIn("carousel", menu_opts)
+            self.assertIn("custom_device_0", menu_opts)
+            self.assertIn("custom_device_1", menu_opts)
+            self.assertIn("Panasonic TV", menu_opts["custom_device_0"])
+            self.assertIn("Bose SOLO5", menu_opts["custom_device_1"])
+
+            # 2. Un simple clic sur le bouton de Bose SOLO5 (custom_device_1) ouvre directement son éditeur 6x12
+            step_fn = getattr(flow, "async_step_custom_device_1")
+            custom_form = await step_fn()
+            self.assertEqual(custom_form["type"], "form")
+            self.assertEqual(custom_form["step_id"], "custom_ui")
+            self.assertEqual(custom_form["description_placeholders"]["device_name"], "Bose SOLO5")
+
+            # 3. La validation de l'écran 6x12 pousse la grille et préserve intactes les options existantes
+            save_res = await flow.async_step_custom_ui({
+                "custom_ui_action": "customize",
+                "screen_title": "Bose Direct 1-Clic",
+                "screen_hidden": False,
+                "top_key": "power",
+                "main_widget": "volume_channel",
+                "button_keys": ["mute"],
+            })
+            self.assertEqual(save_res["type"], "create_entry")
+            self.assertEqual(save_res["data"][CONF_ENTITIES], ["light.salon"])
+
+            # 4. Le clic sur "carousel" dans le menu ouvre le formulaire du carrousel (sans liste déroulante customize_device)
+            carousel_form = await flow.async_step_carousel(None)
+            self.assertEqual(carousel_form["type"], "form")
+            self.assertEqual(carousel_form["step_id"], "carousel")
+            schema_keys = [getattr(k, "schema", str(k)) for k in carousel_form["data_schema"].schema.keys()]
+            self.assertIn(CONF_ENTITIES, schema_keys)
+            self.assertNotIn(CONF_CUSTOMIZE_DEVICE, schema_keys)
+
+        await async_unload_entry(self.hass, self.entry)
+
 
 if __name__ == "__main__":
     unittest.main()

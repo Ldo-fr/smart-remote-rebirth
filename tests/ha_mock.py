@@ -417,6 +417,23 @@ class OptionsFlow(FlowHandler):
             "description_placeholders": description_placeholders or {},
         }
 
+    def async_show_menu(
+        self,
+        step_id: str,
+        menu_options: list[str] | dict[str, str],
+        sort: bool = False,
+        description_placeholders: dict[str, str] | None = None,
+    ) -> FlowResult:
+        return {
+            "type": FlowResultType.MENU,
+            "flow_id": self.flow_id,
+            "handler": getattr(self, "DOMAIN", self.handler),
+            "step_id": step_id,
+            "menu_options": menu_options,
+            "sort": sort,
+            "description_placeholders": description_placeholders or {},
+        }
+
     def async_create_entry(self, title: str = "", data: dict[str, Any] | None = None) -> FlowResult:
         return {
             "type": FlowResultType.CREATE_ENTRY,

@@ -59,7 +59,7 @@
     "step": {
       "init": {
         "title": "Smart Remote Configuration",
-        "description": "Manage devices and buttons installed on your remote:\n• Click the cross (✕) next to an item to remove it.\n• Click inside the list to search and add a Home Assistant entity.\n• Reorder items to change their order on the remote.",
+        "description": "Choose an action or click directly on a device to customize its touchscreen layout (6x12 grid):",
         "data": {
           "entities": "Installed items on the remote (🏠 buttons & 📟 screens)",
           "customize_device": "Customize a device screen & 6x12 grid (optional)",
@@ -68,6 +68,25 @@
           "polling_interval": "Polling interval (seconds)",
           "auto_sync_webhooks": "Automatically synchronize webhooks",
           "timeout": "Request timeout (seconds)"
+        },
+        "sections": {
+          "advanced_settings": {
+            "name": "Advanced settings",
+            "description": "Technical communication settings for the remote.",
+            "data": {
+              "webhook_screen_name": "Home Assistant screen title on remote",
+              "pin_ha_first": "Pin Home Assistant screen first in carousel",
+              "polling_interval": "Polling interval (seconds)",
+              "timeout": "Request timeout (seconds)"
+            }
+          }
+        }
+      },
+      "carousel": {
+        "title": "Carousel & Home Assistant Entities",
+        "description": "Manage devices and buttons installed on your remote:\n• Click the cross (✕) next to an item to remove it.\n• Click inside the list to search and add a Home Assistant entity.\n• Reorder items to change their order on the remote.",
+        "data": {
+          "entities": "Installed items on the remote (🏠 buttons & 📟 screens)"
         },
         "sections": {
           "advanced_settings": {

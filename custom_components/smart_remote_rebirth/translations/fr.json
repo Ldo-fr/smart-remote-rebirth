@@ -59,7 +59,7 @@
     "step": {
       "init": {
         "title": "Configuration de la Smart Remote",
-        "description": "Gérez les appareils et boutons présents sur votre télécommande :\n• Cliquez sur la croix (✕) à côté d'un élément pour le supprimer.\n• Cliquez dans la liste pour rechercher et ajouter une entité Home Assistant.\n• Réorganisez l'ordre des éléments pour modifier leur ordre d'affichage sur la télécommande.",
+        "description": "Choisissez une action ou cliquez directement sur un appareil pour personnaliser son écran tactile (grille 6x12) :",
         "data": {
           "entities": "Éléments installés sur la télécommande (boutons 🏠 & écrans 📟)",
           "customize_device": "Personnaliser l'écran et la grille 6x12 d'un appareil (optionnel)",
@@ -68,6 +68,25 @@
           "polling_interval": "Intervalle de rafraîchissement (secondes)",
           "auto_sync_webhooks": "Synchronisation automatique des webhooks",
           "timeout": "Délai d'attente des requêtes (secondes)"
+        },
+        "sections": {
+          "advanced_settings": {
+            "name": "Paramètres avancés",
+            "description": "Réglages techniques de communication avec la télécommande.",
+            "data": {
+              "webhook_screen_name": "Titre de l'écran Home Assistant sur la télécommande",
+              "pin_ha_first": "Épingler l'écran Home Assistant en 1ère position du carrousel",
+              "polling_interval": "Intervalle de rafraîchissement (secondes)",
+              "timeout": "Délai d'attente des requêtes (secondes)"
+            }
+          }
+        }
+      },
+      "carousel": {
+        "title": "Carrousel & Entités Home Assistant",
+        "description": "Gérez les appareils et boutons présents sur votre télécommande :\n• Cliquez sur la croix (✕) à côté d'un élément pour le supprimer.\n• Cliquez dans la liste pour rechercher et ajouter une entité Home Assistant.\n• Réorganisez l'ordre des éléments pour modifier leur ordre d'affichage sur la télécommande.",
+        "data": {
+          "entities": "Éléments installés sur la télécommande (boutons 🏠 & écrans 📟)"
         },
         "sections": {
           "advanced_settings": {

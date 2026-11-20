@@ -475,10 +475,44 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         self._initial_remote_ids: list[str] | None = None
         self._pending_options: dict[str, Any] = {}
         self._selected_custom_device: str = ""
+        self._menu_device_map: dict[int, str] = {}
         try:
             self.config_entry = config_entry  # type: ignore[misc]
         except Exception:
             pass
+
+    def __getattr__(self, name: str) -> Any:
+        """Résout dynamiquement les étapes 1-clic async_step_custom_device_<idx> du menu principal."""
+        if name.startswith("async_step_custom_device_"):
+            idx_str = name[len("async_step_custom_device_") :]
+            if idx_str.isdigit():
+                idx = int(idx_str)
+
+                async def _step_device(user_input: dict[str, Any] | None = None) -> FlowResult:
+                    return await self._async_open_custom_device_by_index(idx, user_input)
+
+                return _step_device
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
+    async def _async_open_custom_device_by_index(
+        self, idx: int, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ouvre directement l'éditeur graphique 6x12 pour l'appareil sélectionné en 1 clic dans le menu."""
+        if idx not in self._menu_device_map:
+            customizable = [
+                opt
+                for opt in self._get_remote_carousel_options(exclude_webhooks=True)
+                if not opt["value"].startswith("sevenhugs.control.webhooks:")
+            ]
+            for i, opt in enumerate(customizable):
+                self._menu_device_map[i] = opt["value"]
+
+        comp_id = self._menu_device_map.get(idx, "")
+        self._selected_custom_device = comp_id
+        entry = self._entry
+        raw_opts = getattr(entry, "options", None) if entry is not None else None
+        self._pending_options = dict(raw_opts) if isinstance(raw_opts, Mapping) else {}
+        return await self.async_step_custom_ui(user_input)
 
     def _get_runtime_client_and_carousel(self) -> tuple[AsyncSmartRemoteClient | None, list[dict[str, Any]]]:
         """Récupère le client actif et la liste carousel_order en cache du coordinateur."""
@@ -612,7 +646,43 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         return selected_opts + other_opts
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Formulaire unifié de gestion des éléments de la télécommande et options avancées."""
+        """Menu d'accueil 1-clic (Carrousel/Entités HA + 1 bouton 'Personnaliser' par appareil)."""
+        if user_input is not None:
+            return await self.async_step_carousel(user_input)
+
+        if ha_section is not None:
+            customizable_devices = [
+                opt
+                for opt in self._get_remote_carousel_options(exclude_webhooks=True)
+                if not opt["value"].startswith("sevenhugs.control.webhooks:")
+            ]
+            hass_cfg = getattr(getattr(self, "hass", None), "config", None)
+            lang = str(getattr(hass_cfg, "language", "fr") or "fr").lower()
+            is_fr = lang.startswith("fr")
+
+            menu_options: dict[str, str] = {
+                "carousel": (
+                    "🏠 Carrousel & Entités Home Assistant (Ordre, ajouts, suppressions)"
+                    if is_fr
+                    else "🏠 Carousel & Home Assistant Entities (Order, add, remove)"
+                ),
+            }
+            self._menu_device_map.clear()
+            for idx, opt in enumerate(customizable_devices):
+                self._menu_device_map[idx] = opt["value"]
+                clean_label = opt["label"].replace("📟 ", "")
+                prefix = "🎨 Personnaliser : " if is_fr else "🎨 Customize: "
+                menu_options[f"custom_device_{idx}"] = f"{prefix}{clean_label}"
+
+            return self.async_show_menu(
+                step_id="init",
+                menu_options=menu_options,
+            )
+
+        return await self._async_render_carousel_form(step_id="init")
+
+    async def async_step_carousel(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Formulaire dédié à la gestion des entités HA, de l'ordre du carrousel et des paramètres avancés."""
         if user_input is not None:
             processed_input = dict(user_input)
 
@@ -666,6 +736,10 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
 
             return self.async_create_entry(title="", data=processed_input)
 
+        return await self._async_render_carousel_form(step_id="carousel")
+
+    async def _async_render_carousel_form(self, step_id: str = "carousel") -> FlowResult:
+        """Construit et retourne le formulaire des entités HA, du carrousel et des paramètres avancés."""
         entry = self._entry
         raw_opts = getattr(entry, "options", None) if entry is not None else None
         options = dict(raw_opts) if isinstance(raw_opts, Mapping) else {}
@@ -736,11 +810,6 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
         if ha_section is not None:
-            customize_options = [{"value": "", "label": "—"}] + [
-                {"value": opt["value"], "label": opt["label"].replace("📟", "🎨")}
-                for opt in remote_options
-                if not opt["value"].startswith("sevenhugs.control.webhooks:")
-            ]
             data_schema = vol.Schema({
                 vol.Optional(
                     CONF_ENTITIES,
@@ -750,17 +819,6 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                         options=unified_options,
                         multiple=True,
                         custom_value=True,
-                        mode=dropdown_mode,
-                    )
-                ),
-                vol.Optional(
-                    CONF_CUSTOMIZE_DEVICE,
-                    default="",
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=customize_options,
-                        multiple=False,
-                        custom_value=False,
                         mode=dropdown_mode,
                     )
                 ),
@@ -828,7 +886,7 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
             })
 
         return self.async_show_form(
-            step_id="init",
+            step_id=step_id,
             data_schema=data_schema,
         )
 
