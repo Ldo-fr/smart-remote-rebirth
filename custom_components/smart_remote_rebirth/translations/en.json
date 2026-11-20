@@ -59,9 +59,10 @@
     "step": {
       "init": {
         "title": "Smart Remote Configuration",
-        "description": "Manage devices and buttons installed on your remote:\n• Click the cross (✕) next to an item to remove it.\n• Click inside the list to search and add a Home Assistant entity.",
+        "description": "Manage devices and buttons installed on your remote:\n• Click the cross (✕) next to an item to remove it.\n• Click inside the list to search and add a Home Assistant entity.\n• Reorder items to change their order on the remote.",
         "data": {
-          "entities": "Installed items on the remote",
+          "entities": "Installed items on the remote (🏠 buttons & 📟 screens)",
+          "customize_device": "Customize a device screen & 6x12 grid (optional)",
           "delete_devices": "Remote devices to permanently delete",
           "trigger_resync": "Trigger immediate resync to remote",
           "polling_interval": "Polling interval (seconds)",
@@ -79,6 +80,18 @@
               "timeout": "Request timeout (seconds)"
             }
           }
+        }
+      },
+      "custom_ui": {
+        "title": "Customize Screen ({device_name})",
+        "description": "Configure the 6x12 touchscreen layout, title, and visibility for {device_name}. Make sure your remote screen is awake before clicking Submit.",
+        "data": {
+          "custom_ui_action": "Action",
+          "screen_title": "Screen title in carousel",
+          "screen_hidden": "Hide this screen from carousel",
+          "top_key": "Top header button (e.g. Power)",
+          "main_widget": "Main central block (6x6 / 6x8)",
+          "button_keys": "Additional 2x2 buttons (placed automatically in rows of 3)"
         }
       }
     }

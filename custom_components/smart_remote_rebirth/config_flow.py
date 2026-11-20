@@ -38,6 +38,7 @@ from .const import (
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
     CONF_CONTROLLER_ID,
+    CONF_CUSTOMIZE_DEVICE,
     CONF_DELETE_DEVICES,
     CONF_ENTITIES,
     CONF_HOST,
@@ -74,6 +75,7 @@ from .const import (
     MODEL_SR1A,
     TIMEOUT_CONNECT_CHECK,
 )
+from .custom_ui import build_custom_ui_payload
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -471,10 +473,33 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         super().__init__()
         self._config_entry_ref = config_entry
         self._initial_remote_ids: list[str] | None = None
+        self._pending_options: dict[str, Any] = {}
+        self._selected_custom_device: str = ""
         try:
             self.config_entry = config_entry  # type: ignore[misc]
         except Exception:
             pass
+
+    def _get_runtime_client_and_carousel(self) -> tuple[AsyncSmartRemoteClient | None, list[dict[str, Any]]]:
+        """Récupère le client actif et la liste carousel_order en cache du coordinateur."""
+        hass = getattr(self, "hass", None)
+        entry = self._entry
+        if not hass or not entry or not hasattr(hass, "data") or not isinstance(hass.data, Mapping):
+            return None, []
+        domain_data = hass.data.get(DOMAIN, {})
+        runtime_data = domain_data.get(entry.entry_id) if isinstance(domain_data, Mapping) else None
+        if not runtime_data:
+            return None, []
+        client = getattr(runtime_data, "client", None) or (
+            runtime_data.get("client") if isinstance(runtime_data, Mapping) else None
+        )
+        coordinator = getattr(runtime_data, "coordinator", None) or (
+            runtime_data.get("coordinator") if isinstance(runtime_data, Mapping) else None
+        )
+        coord_data = getattr(coordinator, "data", None) if coordinator else None
+        raw_settings = coord_data.get("raw_settings", {}) if isinstance(coord_data, Mapping) else {}
+        carousel = raw_settings.get("carousel_order", []) if isinstance(raw_settings, Mapping) else []
+        return client, (list(carousel) if isinstance(carousel, list) else [])
 
     @property
     def _entry(self) -> Any:
@@ -633,6 +658,12 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                     if kept_remote and kept_remote != original_kept_order:
                         processed_input[CONF_CAROUSEL_ORDER] = kept_remote
 
+            customize_target = str(processed_input.pop(CONF_CUSTOMIZE_DEVICE, "") or "").strip()
+            if customize_target and customize_target != "none":
+                self._pending_options = processed_input
+                self._selected_custom_device = customize_target
+                return await self.async_step_custom_ui()
+
             return self.async_create_entry(title="", data=processed_input)
 
         entry = self._entry
@@ -705,6 +736,11 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
         if ha_section is not None:
+            customize_options = [{"value": "", "label": "—"}] + [
+                {"value": opt["value"], "label": opt["label"].replace("📟", "🎨")}
+                for opt in remote_options
+                if not opt["value"].startswith("sevenhugs.control.webhooks:")
+            ]
             data_schema = vol.Schema({
                 vol.Optional(
                     CONF_ENTITIES,
@@ -714,6 +750,17 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
                         options=unified_options,
                         multiple=True,
                         custom_value=True,
+                        mode=dropdown_mode,
+                    )
+                ),
+                vol.Optional(
+                    CONF_CUSTOMIZE_DEVICE,
+                    default="",
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=customize_options,
+                        multiple=False,
+                        custom_value=False,
                         mode=dropdown_mode,
                     )
                 ),
@@ -783,6 +830,209 @@ class SmartRemoteOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=data_schema,
+        )
+
+    async def async_step_custom_ui(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Étape graphique de personnalisation d'un écran et de sa grille 6x12 (Jalon v0.6)."""
+        comp_id = self._selected_custom_device
+        client, carousel = self._get_runtime_client_and_carousel()
+        errors: dict[str, str] = {}
+
+        # Recherche des métadonnées actuelles dans le carrousel
+        current_item = next(
+            (item for item in carousel if isinstance(item, Mapping) and str(item.get("id")) == comp_id),
+            {},
+        )
+        default_title = str(current_item.get("name") or comp_id)
+        default_hidden = bool(current_item.get("hidden", False))
+
+        if user_input is not None:
+            action = str(user_input.get("custom_ui_action") or "customize").strip()
+            screen_title = str(user_input.get("screen_title") or default_title).strip()
+            screen_hidden = bool(user_input.get("screen_hidden", False))
+            top_key = str(user_input.get("top_key") or "power").strip()
+            main_widget = str(user_input.get("main_widget") or "none").strip()
+            raw_buttons = user_input.get("button_keys") or []
+            button_keys = [str(k).strip() for k in raw_buttons if isinstance(k, str) and k.strip()]
+
+            if client is not None:
+                try:
+                    if action == "restore":
+                        await client.async_restore_custom_ui(comp_id)
+                    elif main_widget != "none" or button_keys:
+                        existing_ui: dict[str, Any] | None = None
+                        available_commands: list[dict[str, Any]] = []
+                        try:
+                            existing_ui = await client.async_get_custom_ui(comp_id)
+                        except Exception:
+                            existing_ui = None
+                        try:
+                            available_commands = await client.async_get_device_commands(comp_id)
+                        except Exception:
+                            available_commands = []
+
+                        widgets_list: list[dict[str, Any]] = []
+                        if main_widget and main_widget != "none":
+                            widgets_list.append({"type": main_widget})
+                        for bkey in button_keys:
+                            widgets_list.append({"type": "button", "key": bkey})
+
+                        payload = build_custom_ui_payload(
+                            comp_id,
+                            widgets=widgets_list,
+                            top_key=top_key,
+                            existing_ui=existing_ui,
+                            available_commands=available_commands,
+                        )
+                        await client.async_set_custom_ui(comp_id, payload)
+
+                    # Mise à jour éventuelle du nom et de la visibilité dans le carrousel
+                    if screen_title != default_title or screen_hidden != default_hidden:
+                        await client.async_update_carousel_order(
+                            [{"id": comp_id, "name": screen_title, "hidden": screen_hidden}]
+                        )
+                except Exception as err:
+                    _LOGGER.warning("Erreur lors de la personnalisation de l'écran %s : %s", comp_id, err)
+                    errors["base"] = ERROR_CANNOT_CONNECT
+
+            if not errors:
+                return self.async_create_entry(title="", data=self._pending_options)
+
+        # Chargement en direct des commandes et de la disposition actuelle de l'appareil
+        cmd_options: list[dict[str, str]] = []
+        default_top_key = "power"
+        default_main_widget = "volume_channel"
+        default_buttons: list[str] = []
+
+        if client is not None and comp_id:
+            try:
+                raw_cmds = await client.async_get_device_commands(comp_id)
+                seen_keys: set[str] = set()
+                for grp in raw_cmds:
+                    if isinstance(grp, Mapping):
+                        clist = grp.get("commands")
+                        if isinstance(clist, list):
+                            for c in clist:
+                                if isinstance(c, Mapping) and c.get("key"):
+                                    k = str(c["key"])
+                                    if k not in seen_keys:
+                                        seen_keys.add(k)
+                                        label = f"{c.get('name') or k} ({k})"
+                                        cmd_options.append({"value": k, "label": label})
+            except Exception:
+                pass
+
+            try:
+                cur_ui = await client.async_get_custom_ui(comp_id)
+                layout = cur_ui.get("layout", {}) if isinstance(cur_ui, Mapping) else {}
+                top = layout.get("top", {}) if isinstance(layout, Mapping) else {}
+                top_ctrls = top.get("controls", []) if isinstance(top, Mapping) else []
+                if isinstance(top_ctrls, list) and top_ctrls and isinstance(top_ctrls[0], Mapping):
+                    t_touch = top_ctrls[0].get("touch", {})
+                    if isinstance(t_touch, Mapping) and t_touch.get("key"):
+                        default_top_key = str(t_touch["key"])
+
+                frags = layout.get("fragments", []) if isinstance(layout, Mapping) else []
+                if isinstance(frags, list) and frags and isinstance(frags[0], Mapping):
+                    screens = frags[0].get("screens", [])
+                    found_main = "none"
+                    found_btns: list[str] = []
+                    if isinstance(screens, list):
+                        for scr in screens:
+                            if not isinstance(scr, Mapping):
+                                continue
+                            for w in scr.get("widgets", []) or []:
+                                if not isinstance(w, Mapping):
+                                    continue
+                                wtype = str(w.get("type") or "")
+                                if wtype in ("volume_channel", "navigation", "arrows_trackpad", "numpad", "abcd"):
+                                    if found_main == "none":
+                                        found_main = wtype
+                                elif wtype == "button":
+                                    w_ctrls = w.get("controls", [])
+                                    if isinstance(w_ctrls, list) and w_ctrls and isinstance(w_ctrls[0], Mapping):
+                                        bt = w_ctrls[0].get("touch", {})
+                                        if isinstance(bt, Mapping) and bt.get("key"):
+                                            found_btns.append(str(bt["key"]))
+                    if found_main != "none" or found_btns:
+                        default_main_widget = found_main
+                        default_buttons = found_btns
+            except Exception:
+                pass
+
+        if not cmd_options:
+            for fallback_k, fallback_lbl in (
+                ("power", "Power (power)"),
+                ("mute", "Mute (mute)"),
+                ("vol_up", "Vol up (vol_up)"),
+                ("vol_down", "Vol down (vol_down)"),
+                ("play", "Play (play)"),
+                ("pause", "Pause (pause)"),
+                ("stop", "Stop (stop)"),
+            ):
+                cmd_options.append({"value": fallback_k, "label": fallback_lbl})
+
+        dropdown_mode = (
+            selector.SelectSelectorMode.DROPDOWN
+            if hasattr(selector, "SelectSelectorMode")
+            else "dropdown"
+        )
+
+        action_options = [
+            {"value": "customize", "label": "🎨 Personnaliser la grille 6x12 / Customize 6x12 grid"},
+            {"value": "restore", "label": "🔄 Restaurer l'écran d'origine / Restore factory layout"},
+        ]
+        main_widget_options = [
+            {"value": "volume_channel", "label": "🔊 Volume +/- & Chaîne +/- (6x6)"},
+            {"value": "navigation", "label": "🧭 Croix directionnelle + OK (6x6)"},
+            {"value": "arrows_trackpad", "label": "👆 Pavé tactile Trackpad (6x6)"},
+            {"value": "numpad", "label": "🔢 Pavé numérique 0-9 + OK (6x8)"},
+            {"value": "abcd", "label": "🔤 Barre 4 touches A / B / C / D (6x2)"},
+            {"value": "none", "label": "— Aucun grand bloc (boutons 2x2 uniquement) —"},
+        ]
+
+        custom_ui_schema = vol.Schema({
+            vol.Optional("custom_ui_action", default="customize"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=action_options,
+                    multiple=False,
+                    custom_value=False,
+                    mode=dropdown_mode,
+                )
+            ),
+            vol.Optional("screen_title", default=default_title): str,
+            vol.Optional("screen_hidden", default=default_hidden): bool,
+            vol.Optional("top_key", default=default_top_key): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=cmd_options,
+                    multiple=False,
+                    custom_value=True,
+                    mode=dropdown_mode,
+                )
+            ),
+            vol.Optional("main_widget", default=default_main_widget): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=main_widget_options,
+                    multiple=False,
+                    custom_value=False,
+                    mode=dropdown_mode,
+                )
+            ),
+            vol.Optional("button_keys", default=default_buttons): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=cmd_options,
+                    multiple=True,
+                    custom_value=True,
+                    mode=dropdown_mode,
+                )
+            ),
+        })
+
+        return self.async_show_form(
+            step_id="custom_ui",
+            data_schema=custom_ui_schema,
+            errors=errors,
+            description_placeholders={"device_name": default_title},
         )
 
 

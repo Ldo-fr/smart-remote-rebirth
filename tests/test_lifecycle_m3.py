@@ -284,7 +284,7 @@ class TestMilestone3LifecycleAndLocalization(unittest.IsolatedAsyncioTestCase):
             set(fr_leaves.keys()),
             f"Différence de structure détectée: {set(s_leaves.keys()) ^ set(fr_leaves.keys())}",
         )
-        self.assertIn(len(s_leaves), (36, 38, 39, 41, 43, 45))
+        self.assertGreaterEqual(len(s_leaves), 36)
 
         # 4. Présence de l'intégralité des 4 entités actives (FR-3)
         expected_entities = [

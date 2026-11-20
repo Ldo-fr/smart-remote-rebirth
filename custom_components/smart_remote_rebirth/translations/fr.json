@@ -59,9 +59,10 @@
     "step": {
       "init": {
         "title": "Configuration de la Smart Remote",
-        "description": "Gérez les appareils et boutons présents sur votre télécommande :\n• Cliquez sur la croix (✕) à côté d'un élément pour le supprimer.\n• Cliquez dans la liste pour rechercher et ajouter une entité Home Assistant.",
+        "description": "Gérez les appareils et boutons présents sur votre télécommande :\n• Cliquez sur la croix (✕) à côté d'un élément pour le supprimer.\n• Cliquez dans la liste pour rechercher et ajouter une entité Home Assistant.\n• Réorganisez l'ordre des éléments pour modifier leur ordre d'affichage sur la télécommande.",
         "data": {
-          "entities": "Éléments installés sur la télécommande",
+          "entities": "Éléments installés sur la télécommande (boutons 🏠 & écrans 📟)",
+          "customize_device": "Personnaliser l'écran et la grille 6x12 d'un appareil (optionnel)",
           "delete_devices": "Appareils de la télécommande à supprimer définitivement",
           "trigger_resync": "Déclencher la resynchronisation immédiate vers la télécommande",
           "polling_interval": "Intervalle de rafraîchissement (secondes)",
@@ -79,6 +80,18 @@
               "timeout": "Délai d'attente des requêtes (secondes)"
             }
           }
+        }
+      },
+      "custom_ui": {
+        "title": "Personnaliser l'écran ({device_name})",
+        "description": "Configurez la grille tactile 6x12, le titre et la visibilité de {device_name}. Assurez-vous que l'écran de votre télécommande est allumé avant de valider.",
+        "data": {
+          "custom_ui_action": "Action",
+          "screen_title": "Titre de l'écran dans le carrousel",
+          "screen_hidden": "Masquer cet écran du carrousel",
+          "top_key": "Bouton tout en haut de l'écran (ex. Power)",
+          "main_widget": "Grand bloc central (6x6 / 6x8)",
+          "button_keys": "Boutons 2x2 additionnels (placés automatiquement par lignes de 3)"
         }
       }
     }
