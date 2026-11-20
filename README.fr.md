@@ -7,7 +7,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom%20Repository-orange.svg)](https://hacs.xyz/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1%2B%20%7C%202026.11%2B-blue.svg)](https://www.home-assistant.io/)
 [![Version](https://img.shields.io/github/v/release/Ldo-fr/smart-remote-rebirth?include_prereleases&color=yellow&label=version)](https://github.com/Ldo-fr/smart-remote-rebirth/releases)
-[![Build & Tests](https://img.shields.io/badge/tests-330%20passed%20(100%25)-brightgreen.svg)]()
+[![Build & Tests](https://img.shields.io/badge/tests-374%20passed%20(100%25)-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte à outils locale pour la télécommande universelle **Sevenhugs Smart Remote** (modèle `SR1A`, FCC ID `2AEVC-SR1A`).
@@ -45,8 +45,10 @@ Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte
 | **Événements d'automatisation** | ✅ Opérationnel | Émission systématique de l'événement `smart_remote_button_pressed` sur le bus d'événements Home Assistant. |
 | **Gestion de la veille (Deep Sleep)** | ✅ Opérationnel | Tolérance aux micro-coupures Wi-Fi lors de l'endormissement de la télécommande et reconnexion transparente lors de la reprise en main. |
 | **Gestion des entités & Nettoyage (Options Flow)** | ✅ Opérationnel | Interface graphique pour sélectionner les entités HA à injecter et supprimer définitivement les anciens appareils/groupes de la télécommande. |
+| **Ordonnancement du carrousel & Renommage d'écrans** | ✅ Opérationnel | Réorganisation des écrans du carrousel, renommage/masquage et épinglage de l'écran Home Assistant en 1ère position via l'UI ou `smart_remote_rebirth.set_carousel_order`. |
+| **Éditeur de grilles tactiles Custom UI (`6x12`)** | ✅ Opérationnel | Accès 1-clic par appareil dans **⚙️ Configurer** (et services `set_custom_ui_layout` / `restore_custom_ui_layout`) pour personnaliser la grille `6x12` (`volume_channel`, `navigation`, `numpad`, boutons `2x2`, appui long, pagination automatique). |
 | **Injecteur d'assistants Lua** | ✅ Opérationnel | Automatisation de la configuration des boutons webhooks via le serveur HTTP embarqué de la télécommande. |
-| **Boutons de maintenance** | ✅ Opérationnel | Entités boutons dans Home Assistant pour forcer la synchronisation, tester la connectivité (ping) et sauvegarder la configuration locale. |
+| **Boutons de maintenance & Diagnostics HA** | ✅ Opérationnel | Entités boutons (`force_sync`, `ping`, `backup_config`) et téléchargement de diagnostic anonymisé Home Assistant (`diagnostics.py`). |
 | **Injection d'interfaces riches natives (`sevenhugs.ui.light` / `sevenhugs.ui.media`)** | 💡 Prévu plus tard | Piste exploratoire pour réutiliser les templates graphiques d'origine (variateurs de lumière, sliders, contrôles multimédia dédiés). |
 
 ---
@@ -95,6 +97,27 @@ Une fois l'intégration installée et Home Assistant redémarré :
 
 > [!TIP]
 > Une fois appairée, les clés cryptographiques de session sont conservées de manière sécurisée dans Home Assistant. Vous n'aurez **plus jamais besoin de ressaisir de code PIN**, même après un redémarrage de votre serveur ou de la télécommande.
+
+---
+
+## 🎨 Personnalisation des écrans & Ordre du carrousel (**⚙️ Configurer**)
+
+Cliquez sur la roue crantée **⚙️ Configurer** de la carte **Smart Remote Rebirth** dans **Paramètres > Appareils et services** pour ouvrir le menu d'accueil à boutons 1-clic :
+
+1. **🏠 Carrousel & Entités Home Assistant** :
+   - Ajoutez ou retirez les entités Home Assistant (`light`, `switch`, `scene`, `script`, `media_player`, etc.) exposées sur la télécommande.
+   - Réorganisez l'ordre des pastilles `📟` pour modifier l'ordre du carrousel sur la télécommande, ou cliquez sur `✕` sur une pastille pour supprimer définitivement l'appareil.
+   - Dans **Paramètres avancés**, personnalisez le titre de l'écran Home Assistant (par défaut `"Home Assistant"`) et choisissez de l'épingler en 1ère position du carrousel.
+2. **🎨 Personnaliser : `<Nom de l'appareil>` (accès direct en 1 clic)** :
+   - Chaque appareil de la télécommande dispose de son propre bouton cliquable dans le menu d'accueil.
+   - Un simple clic ouvre directement l'**Éditeur graphique de grille tactile `6x12`** de cet appareil :
+     - Renommez ou masquez l'écran dans le carrousel.
+     - Choisissez le bouton tout en haut de l'écran (ex. `power`), le grand bloc central (`volume_channel`, `navigation`, `arrows_trackpad`, `numpad`, `abcd` ou `none`) et vos boutons `2x2` additionnels (placés automatiquement par lignes de 3 avec création automatique d'une 2e page si la 1ère est pleine).
+     - Ou sélectionnez **Restaurer l'écran d'origine** pour revenir à l'agencement usine.
+   - Pour les automatisations avancées, 3 actions (services) Home Assistant sont également disponibles dans **Outils de développement > Actions** :
+     - `smart_remote_rebirth.set_carousel_order`
+     - `smart_remote_rebirth.set_custom_ui_layout`
+     - `smart_remote_rebirth.restore_custom_ui_layout`
 
 ---
 

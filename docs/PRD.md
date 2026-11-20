@@ -8,7 +8,7 @@
 | :--- | :--- |
 | **Nom du projet** | Smart Remote Rebirth (`smart_remote_rebirth`) |
 | **Statut du document** | **Source Unique de Vérité (Single Source of Truth)** |
-| **Version actuelle** | `0.4.1` (Cible d'alignement : `0.5.0`) |
+| **Version actuelle** | `0.7.0` (Jalons v0.5 & v0.6 complétés) |
 | **Matériel cible** | Sevenhugs Smart Remote (Modèle `SR1A`, FCC ID `2AEVC-SR1A`) |
 | **Firmware de référence** | `0.76.4-19.6.3-ae` (`API Version 31`, `Min Version 24`) |
 | **Plateforme cible** | Home Assistant Core `2024.1+` / `2026.11+` (HACS & Marketplace) |
@@ -97,9 +97,12 @@ smart-remote-rebirth/
 │       ├── const.py                        # Constantes normatives du domaine
 │       ├── coordinator.py                  # DataUpdateCoordinator et résilience Deep Sleep
 │       ├── crypto.py                       # Primitives TLV8, SRP-6a, Ed25519, X25519, ChaCha20-Poly1305
+│       ├── custom_ui.py                    # Moteur de grilles tactiles 6x12 (SrCustomUiApi) et ordonnancement du carrousel
+│       ├── diagnostics.py                  # Export de diagnostic anonymisé Home Assistant
 │       ├── entity.py                       # Classe de base commune et rattachement au Device Registry
-│       ├── lua_injector.py                 # Automatisation Server-Driven UI Lua (webhooks)
+│       ├── lua_injector.py                 # Automatisation Server-Driven UI Lua (webhooks & carrousel)
 │       ├── manifest.json                   # Métadonnées Home Assistant / HACS
+│       ├── services.yaml                   # Définitions UI des services (set_carousel_order, set_custom_ui_layout, restore_custom_ui_layout)
 │       ├── strings.json                    # Chaînes de référence du ConfigFlow / OptionsFlow / Entités
 │       └── webhook.py                      # Réception locale sécurisée, validation et dispatch HA
 ├── docs/                                   # Pilier 2 : Documentation de référence
@@ -246,6 +249,18 @@ Conformément aux capacités réelles de l'API `/api/settings` du firmware `v0.7
    - Remplace proprement les anciens appareils `sevenhugs.control.webhooks` du carrousel pour éviter les doublons.
    - Pilote la machine à états `/api/devices/sevenhugs.control.webhooks/setup` avec le cookie de session `7HUGS_SID` (`connect` $\rightarrow$ `main_page` $\rightarrow$ `add_choice` $\rightarrow$ `advanced_add_edit` $\rightarrow$ `post_advanced_add_edit` $\rightarrow$ `done`).
    - En cas de télécommande en veille lors de la synchronisation, absorbe l'erreur sans crash et active `_pending_resync = True`.
+
+### FR-6 : Ordonnancement du Carrousel & Grilles Tactiles Custom UI `6x12` (`custom_ui.py` & `OptionsFlow`)
+1. **Menu d'accueil 1-clic dans l'Options Flow (`⚙️ Configurer`)** :
+   - Utilise `async_show_menu` à l'ouverture de `⚙️ Configurer` pour afficher :
+     - Une entrée **`🏠 Carrousel & Entités Home Assistant`** ouvrant le formulaire de gestion des entités, de l'ordre du carrousel et des paramètres avancés (`async_step_carousel`).
+     - Une liste de boutons 1-clic **`🎨 Personnaliser : <Nom de l'appareil> (<catégorie>)`** (1 bouton par appareil présent sur la télécommande) ouvrant directement l'éditeur graphique `6x12` (`async_step_custom_ui`) de l'appareil sans étape intermédiaire.
+2. **Ordonnancement non-destructif du carrousel (`carousel_order`)** :
+   - Épingle par défaut l'écran Home Assistant (`sevenhugs.control.webhooks:*`) en 1ère position du carrousel et le renomme `"Home Assistant"` via `PATCH /api/settings`.
+   - Permet de réordonner, renommer ou masquer n'importe quel écran par son nom convivial, l'alias `"home_assistant"` ou son `component_id` via l'Options Flow ou le service `smart_remote_rebirth.set_carousel_order`.
+3. **Constructeur déclaratif de grilles `6x12` (`SrCustomUiApi`)** :
+   - Valide et place automatiquement les widgets (`volume_channel`, `navigation`, `arrows_trackpad`, `numpad`, `abcd`, `button` `2x2` avec support `long_press_key`) sur la grille `6x12` de la télécommande avec création automatique de pages additionnelles en cas de dépassement et détection stricte des collisions (`HomeAssistantError`).
+   - Expose l'éditeur graphique dans l'Options Flow ainsi que les services `smart_remote_rebirth.set_custom_ui_layout` (avec mode expert `raw_layout`) et `smart_remote_rebirth.restore_custom_ui_layout`.
 
 ---
 
