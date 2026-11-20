@@ -7,7 +7,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom%20Repository-orange.svg)](https://hacs.xyz/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1%2B%20%7C%202026.11%2B-blue.svg)](https://www.home-assistant.io/)
 [![Version](https://img.shields.io/github/v/release/Ldo-fr/smart-remote-rebirth?include_prereleases&color=yellow&label=version)](https://github.com/Ldo-fr/smart-remote-rebirth/releases)
-[![Build & Tests](https://img.shields.io/badge/tests-330%20passed%20(100%25)-brightgreen.svg)]()
+[![Build & Tests](https://img.shields.io/badge/tests-374%20passed%20(100%25)-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Native **Home Assistant** integration (compatible with HACS / Marketplace) and local reverse-engineering toolkit for the **Sevenhugs Smart Remote** universal remote control (model `SR1A`, FCC ID `2AEVC-SR1A`).
@@ -45,8 +45,10 @@ Native **Home Assistant** integration (compatible with HACS / Marketplace) and l
 | **Automation Events** | ✅ Operational | Systematic firing of the `smart_remote_button_pressed` event on the Home Assistant event bus. |
 | **Deep Sleep Management** | ✅ Operational | Tolerance to Wi-Fi sleep cycles when the remote sleeps and seamless keep-alive reconnection when picked up. |
 | **Entity Management & Cleanup (Options Flow)** | ✅ Operational | Graphical UI in Home Assistant to select exposed entities and permanently delete legacy carousel devices/groups. |
+| **Carousel Ordering & Screen Renaming** | ✅ Operational | Reorder screens in the remote carousel, rename or hide screens, and pin the Home Assistant screen first via UI or `smart_remote_rebirth.set_carousel_order`. |
+| **6x12 Custom UI Touchscreen Grid Builder** | ✅ Operational | 1-click per-device graphical editor in **⚙️ Configure** (and `set_custom_ui_layout` / `restore_custom_ui_layout` services) to customize the `6x12` grid (`volume_channel`, `navigation`, `numpad`, `2x2` buttons, long-press, multi-page auto-pagination). |
 | **Lua Assistant Injector** | ✅ Operational | Automated webhook button provisioning pushed directly to the remote's embedded HTTP server. |
-| **Maintenance Buttons** | ✅ Operational | Dedicated buttons in Home Assistant to force telemetry sync, ping the remote, and backup configuration dumps. |
+| **Maintenance Buttons & HA Diagnostics** | ✅ Operational | Dedicated buttons (`force_sync`, `ping`, `backup_config`) and anonymized Home Assistant diagnostics download (`diagnostics.py`). |
 | **Native Rich UI Injection (`sevenhugs.ui.light` / `sevenhugs.ui.media`)** | 💡 Planned Later | Exploratory research track to leverage the firmware's built-in UI templates (dimmer sliders, color wheels, dedicated media controls). |
 
 ---
@@ -95,6 +97,27 @@ Once the integration is installed and Home Assistant has restarted:
 
 > [!TIP]
 > Once paired, cryptographic session keys are securely stored in Home Assistant. You will **never need to re-enter a PIN code**, even after restarting Home Assistant or rebooting the remote control.
+
+---
+
+## 🎨 Customizing Screens & Carousel Order (**⚙️ Configure**)
+
+Click the **⚙️ Configure** gear icon on the **Smart Remote Rebirth** integration card in **Settings > Devices & Services** to open the 1-click action menu:
+
+1. **🏠 Carousel & Home Assistant Entities**:
+   - Add or remove Home Assistant entities (`light`, `switch`, `scene`, `script`, `media_player`, etc.) exposed on the remote.
+   - Reorder the `📟` device chips to change the carousel order on the remote, or click `✕` on a device chip to permanently delete it.
+   - Under **Advanced settings**, customize the Home Assistant screen title (default: `"Home Assistant"`) and choose whether to pin it in 1st position of the carousel.
+2. **🎨 Customize: `<Device Name>` (1-click per device)**:
+   - Each device on the remote appears directly in the menu as a clickable button.
+   - Clicking a device immediately opens its **`6x12` Touchscreen Grid Editor**:
+     - Rename or hide the screen in the carousel.
+     - Choose the top header button (e.g. `power`), the main central block (`volume_channel`, `navigation`, `arrows_trackpad`, `numpad`, `abcd`, or `none`), and any number of `2x2` buttons (automatically placed in rows of 3 with multi-page overflow).
+     - Or select **Restore factory layout** to revert the screen to its original firmware layout.
+   - Advanced automations can also use the **Developer Tools > Actions (Services)**:
+     - `smart_remote_rebirth.set_carousel_order`
+     - `smart_remote_rebirth.set_custom_ui_layout`
+     - `smart_remote_rebirth.restore_custom_ui_layout`
 
 ---
 
