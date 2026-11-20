@@ -33,6 +33,7 @@ from custom_components.smart_remote_rebirth.const import (
     CONF_CLIENT_PRIVATE_KEY,
     CONF_CLIENT_PUBLIC_KEY,
     CONF_CONTROLLER_ID,
+    CONF_CUSTOMIZE_DEVICE,
     CONF_ENTITIES,
     CONF_HOST,
     CONF_PORT,
@@ -378,6 +379,62 @@ class TestJalonV06EndToEndIntegration(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.assertEqual(res["data"][CONF_ENTITIES], ["light.salon"])
+
+        await async_unload_entry(self.hass, self.entry)
+
+    async def test_options_flow_graphical_custom_ui_wizard(self) -> None:
+        """Vérifie l'assistant graphique en 2 étapes (init -> custom_ui) dans la roue crantée ⚙️ Configurer."""
+        await async_setup_entry(self.hass, self.entry)
+        sync_task = self.hass.data[DOMAIN][self.entry.entry_id].get("_sync_task")
+        if sync_task is not None:
+            await sync_task
+
+        flow = SmartRemoteOptionsFlowHandler(self.entry)
+        flow.hass = self.hass
+
+        # Étape 1 : Sélection d'un appareil à personnaliser dans le formulaire principal
+        await flow.async_step_init(None)
+        comp_id = "sevenhugs.control.infrared:SOLO5_M3708_fff1980f"
+        step1_res = await flow.async_step_init({
+            CONF_ENTITIES: [
+                "sevenhugs.control.infrared:osm_T3825_31572c5c",
+                comp_id,
+                "light.salon",
+            ],
+            CONF_CUSTOMIZE_DEVICE: comp_id,
+        })
+
+        # Doit ouvrir l'étape 2 graphique "custom_ui" pré-remplie avec les commandes de l'appareil
+        self.assertEqual(step1_res["type"], "form")
+        self.assertEqual(step1_res["step_id"], "custom_ui")
+        self.assertEqual(step1_res["description_placeholders"]["device_name"], "Bose SOLO5")
+
+        # Étape 2 : Soumission du formulaire graphique de la grille 6x12
+        step2_res = await flow.async_step_custom_ui({
+            "custom_ui_action": "customize",
+            "screen_title": "Cinéma Bose",
+            "screen_hidden": False,
+            "top_key": "power",
+            "main_widget": "volume_channel",
+            "button_keys": ["mute", "play", "stop"],
+        })
+
+        self.assertEqual(step2_res["type"], "create_entry")
+        self.assertEqual(step2_res["data"][CONF_ENTITIES], ["light.salon"])
+
+        # Vérifie que la grille 6x12 a été poussée en direct sur la télécommande
+        self.assertIn(comp_id, self.server.custom_ui_store)
+        saved_ui = self.server.custom_ui_store[comp_id]
+        widgets = saved_ui["layout"]["fragments"][0]["screens"][0]["widgets"]
+        self.assertEqual(len(widgets), 4)  # 1 volume_channel (6x6) + 3 boutons (2x2)
+        self.assertEqual(widgets[0]["type"], "volume_channel")
+        self.assertEqual((widgets[1]["x"], widgets[1]["y"]), (0, 6))
+        self.assertEqual((widgets[2]["x"], widgets[2]["y"]), (2, 6))
+        self.assertEqual((widgets[3]["x"], widgets[3]["y"]), (4, 6))
+
+        # Vérifie que l'écran a aussi été renommé dans le carrousel
+        bose_item = next(i for i in self.server.carousel_order if i["id"] == comp_id)
+        self.assertEqual(bose_item["name"], "Cinéma Bose")
 
         await async_unload_entry(self.hass, self.entry)
 

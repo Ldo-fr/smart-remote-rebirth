@@ -41,6 +41,7 @@ CONF_TRIGGER_RESYNC = "trigger_resync"
 CONF_CAROUSEL_ORDER = "carousel_order"
 CONF_WEBHOOK_SCREEN_NAME = "webhook_screen_name"
 CONF_PIN_HA_FIRST = "pin_ha_first"
+CONF_CUSTOMIZE_DEVICE = "customize_device"
 DEFAULT_WEBHOOK_SCREEN_NAME = "Home Assistant"
 DEFAULT_PIN_HA_FIRST = True
 

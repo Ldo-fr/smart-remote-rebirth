@@ -532,6 +532,7 @@ class TestLocalizationValidationAndInterpolation(unittest.TestCase):
         test_vars = {
             "sn": "a06fe048b48b260139",
             "host": "192.168.1.42",
+            "device_name": "Bose SOLO5",
         }
 
         for fname, doc in (("strings.json", self.strings), ("en.json", self.en), ("fr.json", self.fr)):
@@ -577,17 +578,17 @@ class TestLocalizationValidationAndInterpolation(unittest.TestCase):
         """Stress-test de résistance face à des données hostiles (Unicode, injections, scalaires)."""
         adversarial_test_cases = [
             # 1. Caractères spéciaux Unicode & émojis
-            {"sn": "SR1A_🎮_éèàô_ñ_한국어", "host": "smart-remote.local"},
+            {"sn": "SR1A_🎮_éèàô_ñ_한국어", "host": "smart-remote.local", "device_name": "Bose 🔊"},
             # 2. Caractères de contrôle et formatage échappé
-            {"sn": "{0}", "host": "%s%d%x"},
+            {"sn": "{0}", "host": "%s%d%x", "device_name": "%s"},
             # 3. Injections d'accolades internes
-            {"sn": "{sn}", "host": "{{host}}"},
+            {"sn": "{sn}", "host": "{{host}}", "device_name": "{{device_name}}"},
             # 4. Injections XML / HTML
-            {"sn": "<script>alert('xss')</script>", "host": "&quot;&amp;"},
+            {"sn": "<script>alert('xss')</script>", "host": "&quot;&amp;", "device_name": "<b>TV</b>"},
             # 5. Valeurs scalaires / entiers / booléens
-            {"sn": 12345678, "host": True},
+            {"sn": 12345678, "host": True, "device_name": 42},
             # 6. Chaîne volumineuse (10 000 caractères)
-            {"sn": "A" * 10000, "host": "B" * 10000},
+            {"sn": "A" * 10000, "host": "B" * 10000, "device_name": "C" * 10000},
         ]
 
         token_regex = re.compile(r"\{([a-zA-Z0-9_]+)\}")
