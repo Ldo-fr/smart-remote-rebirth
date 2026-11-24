@@ -33,6 +33,7 @@ from homeassistant.helpers.aiohttp_client import (
 
 from .client import AsyncSmartRemoteClient, SevenhugsAuthError, SevenhugsConnectionError
 from .const import (
+    CONF_API_VERSION,
     CONF_AUTO_SYNC_WEBHOOKS,
     CONF_CAROUSEL_ORDER,
     CONF_CLIENT_PRIVATE_KEY,
@@ -42,6 +43,7 @@ from .const import (
     CONF_DELETE_DEVICES,
     CONF_ENTITIES,
     CONF_HOST,
+    CONF_MIN_API_VERSION,
     CONF_PIN_HA_FIRST,
     CONF_POLLING_INTERVAL,
     CONF_PORT,
@@ -101,6 +103,8 @@ class SmartRemoteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.remote_id: str = ""
         self.fw_version: str = ""
         self.mac_address: str = ""
+        self.api_version: str = ""
+        self.min_api_version: str = ""
         self.salt: bytes = b""
         self.b_bytes: bytes = b""
         self._pair_client: AsyncSmartRemoteClient | None = None
@@ -185,10 +189,15 @@ class SmartRemoteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 verify_ssl=False,
                 auto_cleanup=False,
             )
+            init_keys: dict[str, Any] = {}
+            if self.api_version:
+                init_keys[CONF_API_VERSION] = self.api_version
+            if self.min_api_version:
+                init_keys[CONF_MIN_API_VERSION] = self.min_api_version
             client = AsyncSmartRemoteClient(
                 host=target_host,
                 session=session,
-                keys={},
+                keys=init_keys,
             )
 
             try:
@@ -302,6 +311,8 @@ class SmartRemoteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_REMOTE_PUBLIC_KEY: keys.get(CONF_REMOTE_PUBLIC_KEY, ""),
                     CONF_SESSION_WRITE_KEY: keys.get(CONF_SESSION_WRITE_KEY, ""),
                     CONF_SESSION_READ_KEY: keys.get(CONF_SESSION_READ_KEY, ""),
+                    CONF_API_VERSION: keys.get(CONF_API_VERSION, self._pair_client.api_version),
+                    CONF_MIN_API_VERSION: keys.get(CONF_MIN_API_VERSION, self._pair_client.min_api_version),
                 }
 
                 # Fermeture du client temporaire de jumelage
@@ -427,15 +438,23 @@ class SmartRemoteConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return SmartRemoteOptionsFlowHandler(config_entry)
 
     async def _async_probe_host(self, host: str, port: int) -> bool:
-        """Vérifie la joignabilité d'un hôte sur le port HTTP 80."""
+        """Vérifie la joignabilité d'un hôte sur le port HTTP 80 et détecte X-Version / X-Min-Version."""
         target = f"{host}:{port}" if port != 80 else host
         url = f"http://{target}/api/hello"
 
         try:
             session = async_get_clientsession(self.hass, verify_ssl=False)
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=TIMEOUT_CONNECT_CHECK)) as resp:
-                # La télécommande retourne 200 sur /api/hello (ou 204/404)
-                return resp.status in (200, 204, 404)
+                resp_headers = getattr(resp, "headers", None)
+                if resp_headers and hasattr(resp_headers, "get"):
+                    r_ver = resp_headers.get("X-Version") or resp_headers.get("x-version")
+                    r_min = resp_headers.get("X-Min-Version") or resp_headers.get("x-min-version")
+                    if r_ver is not None and str(r_ver).strip().isdigit():
+                        self.api_version = str(r_ver).strip()
+                    if r_min is not None and str(r_min).strip().isdigit():
+                        self.min_api_version = str(r_min).strip()
+                # La télécommande retourne 200 sur /api/hello (ou 204/401/403/404 selon la version d'API)
+                return resp.status in (200, 204, 401, 403, 404)
         except Exception as err:
             _LOGGER.debug("Échec de la sonde HTTP sur %s: %s", url, err)
             return False

@@ -7,7 +7,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom%20Repository-orange.svg)](https://hacs.xyz/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.1%2B%20%7C%202026.11%2B-blue.svg)](https://www.home-assistant.io/)
 [![Version](https://img.shields.io/github/v/release/Ldo-fr/smart-remote-rebirth?include_prereleases&color=yellow&label=version)](https://github.com/Ldo-fr/smart-remote-rebirth/releases)
-[![Build & Tests](https://img.shields.io/badge/tests-374%20passed%20(100%25)-brightgreen.svg)]()
+[![Build & Tests](https://img.shields.io/badge/tests-379%20passed%20(100%25)-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Intégration native **Home Assistant** (compatible HACS / Marketplace) et boîte à outils locale pour la télécommande universelle **Sevenhugs Smart Remote** (modèle `SR1A`, FCC ID `2AEVC-SR1A`).
@@ -143,6 +143,7 @@ Pour les développeurs et passionnés souhaitant comprendre l'architecture ou ma
 - [**`tools/pair_and_verify.py`**](tools/pair_and_verify.py) : Script autonome de jumelage initial en ligne de commande.
 - [**`tools/pair_verify.py`**](tools/pair_verify.py) : Test rapide de session chiffrée et extraction des dumps d'état.
 - [**`tools/sevenhugs_bridge.py`**](tools/sevenhugs_bridge.py) : Passerelle et studio Web local de configuration.
+- [**`tools/diagnose_factory_reset.py`**](tools/diagnose_factory_reset.py) : Boîte à outils de diagnostic et sniffer MQTT 3.1.1 local (Python pur) pour les anciens firmwares (`X-Version: 21`) et télécommandes réinitialisées d'usine.
 
 ---
 

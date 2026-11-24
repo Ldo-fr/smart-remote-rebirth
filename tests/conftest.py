@@ -421,6 +421,10 @@ class MockSmartRemoteServer:
         self.srp_shared_k: bytes | None = None
         self.fail_pair_setup_m1: str | None = None
         self.fail_hello: bool = False
+        self.hello_not_found: bool = False
+        self.api_version: str = "31"
+        self.min_api_version: str = "24"
+        self.enforce_api_version: bool = False
         self.fail_srp_m3: bool = False
         self.fail_m5_disconnect: bool = False
         self.carousel_order: list[dict[str, Any]] = [
@@ -546,19 +550,35 @@ class MockSmartRemoteServer:
         writer: asyncio.StreamWriter,
     ) -> tuple[int | None, dict[str, str], bytes]:
         """Achemine la requête vers l'endpoint émulé approprié."""
+        ver_headers = (
+            {"X-Version": self.api_version, "X-Min-Version": self.min_api_version}
+            if self.enforce_api_version
+            else {}
+        )
+        if self.enforce_api_version and path != "/api/hello":
+            req_min = headers.get("x-min-version")
+            if req_min and str(req_min).strip().isdigit() and int(str(req_min).strip()) > int(self.api_version):
+                return 403, dict(ver_headers), b"Forbidden: incompatible API version"
+
         if path == "/api/hello":
             if getattr(self, "fail_hello", False):
-                return 500, {}, b"Error"
-            return 200, {"Content-Type": "application/json"}, b'{"status": "ok"}'
+                return 500, dict(ver_headers), b"Error"
+            if getattr(self, "hello_not_found", False):
+                return 404, dict(ver_headers), b"Not Found"
+            return 200, {"Content-Type": "application/json", **ver_headers}, b'{"status": "ok"}'
         elif path == "/pair-setup":
-            return await self._handle_pair_setup(body, writer)
+            st, h, b = await self._handle_pair_setup(body, writer)
+            return st, {**ver_headers, **h}, b
         elif path == "/pair-verify":
-            return await self._handle_pair_verify(body, conn_id)
+            st, h, b = await self._handle_pair_verify(body, conn_id)
+            return st, {**ver_headers, **h}, b
         elif path == "/api/devices/sevenhugs.control.webhooks/setup":
-            return await self._handle_lua_setup(method, body, headers)
+            st, h, b = await self._handle_lua_setup(method, body, headers)
+            return st, {**ver_headers, **h}, b
         elif path.startswith("/api/"):
-            return await self._handle_api(path, body, conn_id, writer)
-        return 404, {}, b"Not Found"
+            st, h, b = await self._handle_api(path, body, conn_id, writer)
+            return st, {**ver_headers, **h}, b
+        return 404, dict(ver_headers), b"Not Found"
 
     async def _handle_pair_setup(self, body: bytes, writer: asyncio.StreamWriter | None = None) -> tuple[int | None, dict[str, str], bytes]:
         tlv = decode_tlv(body)
