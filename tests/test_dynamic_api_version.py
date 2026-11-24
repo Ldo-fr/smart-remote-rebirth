@@ -124,5 +124,51 @@ class TestDynamicApiVersionNegotiation(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res_pin["data"][CONF_MIN_API_VERSION], "17")
 
 
+class TestFactoryResetDiagnosticTool(unittest.TestCase):
+    """Vérifie les helpers du script tools/diagnose_factory_reset.py (payloads APK & parser MQTT 3.1.1)."""
+
+    def test_apk_config_payload_builders(self) -> None:
+        from tools.diagnose_factory_reset import (
+            APK_FALLBACK_CONFIG_KEY_HEX,
+            build_apk_create_config_payload,
+            build_apk_restore_config_payload,
+        )
+
+        create_payload = build_apk_create_config_payload(home_name="Lab")
+        self.assertEqual(create_payload["metadata"]["name"], "Lab")
+        self.assertEqual(create_payload["smartphone"]["public_key"], "NO-PUBLIC-KEY")
+        self.assertIn("first_name", create_payload["user"])
+        self.assertEqual(create_payload["settings"]["time_convention"], "24-hour")
+
+        restore_payload = build_apk_restore_config_payload()
+        self.assertEqual(len(bytes.fromhex(restore_payload["config_key"])), 64)
+
+        dev_restore = build_apk_restore_config_payload(config_key_hex=APK_FALLBACK_CONFIG_KEY_HEX)
+        self.assertEqual(len(bytes.fromhex(dev_restore["config_key"])), 64)
+
+    def test_mqtt_packet_parser_connect_subscribe_publish(self) -> None:
+        from tools.diagnose_factory_reset import parse_mqtt_packet
+
+        # CONNECT ("MQTT", level=4, flags=0x02, keepalive=60, client_id="sr-5726")
+        connect_payload = b"\x00\x04MQTT\x04\x02\x00\x3c\x00\x07sr-5726"
+        summary, resp = parse_mqtt_packet(1, 0, connect_payload)
+        self.assertIn("CONNECT", summary)
+        self.assertIn("sr-5726", summary)
+        self.assertEqual(resp, b"\x20\x02\x00\x00")  # CONNACK OK
+
+        # SUBSCRIBE (packet_id=1, topic="config/5726", qos=1)
+        sub_payload = b"\x00\x01\x00\x0bconfig/5726\x01"
+        summary, resp = parse_mqtt_packet(8, 2, sub_payload)
+        self.assertIn("config/5726", summary)
+        self.assertEqual(resp, b"\x90\x03\x00\x01\x00")  # SUBACK
+
+        # PUBLISH QoS 1 (topic="config/create", packet_id=7, body='{"ok":true}')
+        pub_payload = b"\x00\x0dconfig/create\x00\x07{\"ok\":true}"
+        summary, resp = parse_mqtt_packet(3, 0x02, pub_payload)
+        self.assertIn("config/create", summary)
+        self.assertIn('{"ok":true}', summary)
+        self.assertEqual(resp, b"\x40\x02\x00\x07")  # PUBACK
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -118,6 +118,7 @@ smart-remote-rebirth/
 │   ├── pair_verify.py                      # Vérification de session et extraction de dumps JSON
 │   ├── poc_quickstart.py                   # Démonstrateur autonome (serveur virtuel ou IP physique)
 │   ├── sevenhugs_bridge.py                 # Passerelle et studio Web autonome historique
+│   ├── diagnose_factory_reset.py           # Diagnostic anciens firmwares (API v21) & sniffer MQTT 3.1.1 local
 │   └── smartremote_keys.example.json       # Modèle de fichier de clés pour les outils CLI
 ├── hacs.json                               # Déclaration de compatibilité HACS
 ├── pyproject.toml                          # Configuration du linter Ruff (Python 3.12+)
