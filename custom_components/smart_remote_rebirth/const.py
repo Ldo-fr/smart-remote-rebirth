@@ -17,7 +17,13 @@ CONF_REMOTE_ID = "remote_id"
 CONF_REMOTE_PUBLIC_KEY = "remote_public_key"
 CONF_SESSION_WRITE_KEY = "session_write_key"
 CONF_SESSION_READ_KEY = "session_read_key"
+CONF_API_VERSION = "api_version"
+CONF_MIN_API_VERSION = "min_api_version"
 CONF_KEYS = "keys"
+
+# Versions d'API HTTP par défaut (firmware 0.76.4) — négociées dynamiquement si différent
+DEFAULT_API_VERSION = "31"
+DEFAULT_MIN_API_VERSION = "24"
 
 # Clés et valeurs par défaut pour les options (R1 : nominal 60s)
 CONF_POLLING_INTERVAL = "polling_interval"

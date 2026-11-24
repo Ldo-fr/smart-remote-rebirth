@@ -55,6 +55,12 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
+from .const import (
+    CONF_API_VERSION,
+    CONF_MIN_API_VERSION,
+    DEFAULT_API_VERSION,
+    DEFAULT_MIN_API_VERSION,
+)
 from .crypto import (
     NONCE_PS_MSG05,
     NONCE_PS_MSG06,
@@ -140,6 +146,20 @@ class AsyncSmartRemoteClient:
         if raw_read_k:
             self._session_read_key = bytes.fromhex(raw_read_k) if isinstance(raw_read_k, str) else bytes(raw_read_k)
 
+        # Versions d'API HTTP (négociées dynamiquement depuis les en-têtes X-Version / X-Min-Version)
+        raw_api_ver = keys.get(CONF_API_VERSION)
+        self._api_version: str = (
+            str(raw_api_ver).strip()
+            if raw_api_ver is not None and str(raw_api_ver).strip().isdigit()
+            else DEFAULT_API_VERSION
+        )
+        raw_min_ver = keys.get(CONF_MIN_API_VERSION)
+        self._min_api_version: str = (
+            str(raw_min_ver).strip()
+            if raw_min_ver is not None and str(raw_min_ver).strip().isdigit()
+            else DEFAULT_MIN_API_VERSION
+        )
+
         # Indicateur d'état de session active : toujours False à l'instanciation
         # car une nouvelle connexion TCP Keep-Alive nécessite son propre handshake Pair-Verify
         self._is_verified: bool = False
@@ -151,6 +171,58 @@ class AsyncSmartRemoteClient:
         self._request_lock = asyncio.Lock()
         self._session_generation: int = 0
         self._requests_since_verify: int = 0
+
+    @property
+    def api_version(self) -> str:
+        """Retourne la version d'API HTTP négociée avec la télécommande (X-Version)."""
+        return self._api_version
+
+    @property
+    def min_api_version(self) -> str:
+        """Retourne la version minimale d'API HTTP négociée (X-Min-Version)."""
+        return self._min_api_version
+
+    def _get_version_headers(self) -> dict[str, str]:
+        """Retourne les en-têtes X-Version / X-Min-Version actifs pour les requêtes HTTP."""
+        return {
+            "X-Version": self._api_version,
+            "X-Min-Version": self._min_api_version,
+        }
+
+    def _update_api_version_from_headers(self, headers: Any) -> bool:
+        """Adapte dynamiquement X-Version / X-Min-Version à partir des en-têtes de réponse de la télécommande."""
+        if not headers or not hasattr(headers, "get"):
+            return False
+
+        remote_ver = headers.get("X-Version") or headers.get("x-version")
+        remote_min = headers.get("X-Min-Version") or headers.get("x-min-version")
+
+        new_ver = str(remote_ver).strip() if remote_ver is not None else ""
+        new_min = str(remote_min).strip() if remote_min is not None else ""
+
+        updated = False
+        if new_ver.isdigit() and new_ver != self._api_version:
+            self._api_version = new_ver
+            self._keys[CONF_API_VERSION] = new_ver
+            updated = True
+            # Si X-Min-Version n'est pas fourni mais notre min actuel dépasse la version distante, on l'abaisse
+            if not new_min.isdigit() and int(self._min_api_version) > int(new_ver):
+                self._min_api_version = new_ver
+                self._keys[CONF_MIN_API_VERSION] = new_ver
+
+        if new_min.isdigit() and new_min != self._min_api_version:
+            self._min_api_version = new_min
+            self._keys[CONF_MIN_API_VERSION] = new_min
+            updated = True
+
+        if updated:
+            _LOGGER.info(
+                "Version API détectée dynamiquement sur %s : X-Version=%s, X-Min-Version=%s",
+                self.host,
+                self._api_version,
+                self._min_api_version,
+            )
+        return updated
 
     @property
     def session_generation(self) -> int:
@@ -213,8 +285,7 @@ class AsyncSmartRemoteClient:
         headers = {
             "Content-Type": "application/pairing+tlv8",
             "X-UUID": str(self._controller_id),
-            "X-Version": "31",
-            "X-Min-Version": "24",
+            **self._get_version_headers(),
             "Connection": "Keep-Alive",
             "User-Agent": "okhttp/3.12.0",
         }
@@ -229,12 +300,20 @@ class AsyncSmartRemoteClient:
                 if hasattr(aiohttp, "ClientTimeout")
                 else 15
             )
-            async with self._session.post(
-                url, data=m1_data, headers=headers, timeout=timeout_param
-            ) as resp1:
-                if resp1.status != 200:
-                    raise SevenhugsAuthError(f"Pair-Verify M1 a échoué avec le statut HTTP {resp1.status}")
-                raw_m2 = await resp1.read()
+            raw_m2 = b""
+            for attempt in range(2):
+                async with self._session.post(
+                    url, data=m1_data, headers=headers, timeout=timeout_param
+                ) as resp1:
+                    ver_changed = self._update_api_version_from_headers(getattr(resp1, "headers", None))
+                    if resp1.status == 403 and ver_changed and attempt == 0:
+                        headers.update(self._get_version_headers())
+                        continue
+                    if resp1.status != 200:
+                        raise SevenhugsAuthError(f"Pair-Verify M1 a échoué avec le statut HTTP {resp1.status}")
+                    raw_m2 = await resp1.read()
+                    headers.update(self._get_version_headers())
+                    break
         except (TimeoutError, aiohttp.ClientError) as err:
             raise SevenhugsConnectionError(f"Erreur réseau lors de Pair-Verify M1: {err}") from err
 
@@ -382,8 +461,7 @@ class AsyncSmartRemoteClient:
 
         headers = {
             "X-UUID": str(self._controller_id),
-            "X-Version": "31",
-            "X-Min-Version": "24",
+            **self._get_version_headers(),
             "Connection": "Keep-Alive",
             "User-Agent": "okhttp/3.12.0",
         }
@@ -405,7 +483,12 @@ class AsyncSmartRemoteClient:
             async with self._session.request(
                 method, url, data=body, headers=headers, timeout=timeout_param
             ) as resp:
+                ver_changed = self._update_api_version_from_headers(getattr(resp, "headers", None))
                 resp_bytes = await resp.read()
+                if resp.status == 403 and ver_changed:
+                    raise SevenhugsAuthError(
+                        f"Version API négociée ({self._api_version}/{self._min_api_version}) suite à HTTP 403 sur {path}"
+                    )
                 if resp.status == 400:
                     err_detail = self._try_decode_error_bytes(resp_bytes)
                     raise SevenhugsAuthError(
@@ -469,6 +552,7 @@ class AsyncSmartRemoteClient:
         """Émet la requête M1 de Pair-Setup vers /pair-setup et extrait Salt et clé publique B."""
         headers = {
             "Content-Type": "application/pairing+tlv8",
+            **self._get_version_headers(),
             "Connection": "Keep-Alive",
             "User-Agent": "okhttp/3.12.0",
         }
@@ -483,12 +567,19 @@ class AsyncSmartRemoteClient:
         )
 
         try:
-            async with self._session.post(
-                url, data=m1_data, headers=headers, timeout=timeout_param
-            ) as resp:
-                if resp.status != 200:
-                    raise SevenhugsConnectionError(f"Pair-Setup M1 a retourné le statut HTTP {resp.status}")
-                raw_m2 = await resp.read()
+            raw_m2 = b""
+            for attempt in range(2):
+                async with self._session.post(
+                    url, data=m1_data, headers=headers, timeout=timeout_param
+                ) as resp:
+                    ver_changed = self._update_api_version_from_headers(getattr(resp, "headers", None))
+                    if resp.status == 403 and ver_changed and attempt == 0:
+                        headers.update(self._get_version_headers())
+                        continue
+                    if resp.status != 200:
+                        raise SevenhugsConnectionError(f"Pair-Setup M1 a retourné le statut HTTP {resp.status}")
+                    raw_m2 = await resp.read()
+                    break
         except (TimeoutError, aiohttp.ClientError) as err:
             raise SevenhugsConnectionError(f"Erreur réseau lors de Pair-Setup M1: {err}") from err
 
@@ -514,6 +605,7 @@ class AsyncSmartRemoteClient:
 
         headers = {
             "Content-Type": "application/pairing+tlv8",
+            **self._get_version_headers(),
             "Connection": "Keep-Alive",
             "User-Agent": "okhttp/3.12.0",
         }

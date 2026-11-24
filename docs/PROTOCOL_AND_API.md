@@ -34,7 +34,8 @@ X-Version: 31
 X-Min-Version: 24
 Connection: Keep-Alive
 ```
-- `X-Version: 31` correspond à `api_version = 31` du firmware `0.76.4`.
+- `X-Version: 31` correspond à `api_version = 31` du firmware `0.76.4` (avec `X-Min-Version: 24`).
+- **Négociation dynamique (anciens firmwares, ex. API `v21` / min `17`)** : la télécommande renvoie ses propres en-têtes `X-Version` et `X-Min-Version` dans chaque réponse HTTP et rejette en `HTTP 403` toute requête dont `X-Min-Version` dépasse sa propre version d'API. `AsyncSmartRemoteClient` et `SmartRemoteConfigFlow` lisent automatiquement ces en-têtes (y compris sur une réponse `403` ou `404` sur `/api/hello`) pour s'adapter dynamiquement aux anciens firmwares.
 - `X-UUID` doit contenir l'identifiant du contrôleur (`controller_id`) enregistré lors de l'étape `M5` de `Pair-Setup`.
 
 ### 2.2. `POST /pair-setup` (Jumelage initial avec code PIN)
